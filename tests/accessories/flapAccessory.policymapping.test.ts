@@ -112,6 +112,44 @@ describe("FlapAccessory policy mapping", () => {
     });
   });
 
+  it("lock state follows the configured name even when the policy's idleLock disagrees", () => {
+    // Real-world OnlyCat: "without Alarm" still has idleLock=true (flap is
+    // per-cat unlocked, not idle-unlocked). HomeKit should still show this
+    // as the unlocked state when the user has set unlockPolicyName.
+    const log = createMockLogger();
+    const api = createMockApi();
+    const socket = createMockSocket();
+    const client = new OnlyCatClient({ token: "tok", log, socket });
+    const device = { deviceId: "dev-1", deviceTransitPolicyId: 3 };
+    const accessory = new MockPlatformAccessory("Flap", "uuid:dev-1");
+    const flap = new FlapAccessory({
+      api,
+      log,
+      client,
+      device,
+      accessory: asPlatformAccessory(accessory),
+      disableCamera: true,
+      unlockPolicyName: "without Alarm",
+      lockPolicyName: "Locked",
+    });
+    flap.applyPolicy({
+      deviceTransitPolicyId: 1,
+      deviceId: "dev-1",
+      name: "Locked",
+      transitPolicy: { idleLock: true },
+    });
+    flap.applyPolicy({
+      deviceTransitPolicyId: 3,
+      deviceId: "dev-1",
+      name: "without Alarm",
+      // idleLock=true but the user considers this "unlocked"
+      transitPolicy: { idleLock: true },
+    });
+    const lock = accessory.getService("LockMechanism", "lock")!;
+    // Should be unlocked because the active policy name matches unlockPolicyName.
+    expect(lock.getCharacteristic("LockCurrentState").value).toBe(0);
+  });
+
   it("falls back to idleLock heuristic when neither override is configured", async () => {
     const { accessory, socket } = build();
     socket.__ackResponses.set("activateDeviceTransitPolicy", { success: true });

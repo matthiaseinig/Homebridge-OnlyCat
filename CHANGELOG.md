@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.12]
+
+### Fixed
+
+- **HomeKit Lock state now honours `unlockPolicyName` / `lockPolicyName` instead of `idleLock`.** Real OnlyCat policies for cat-flap use cases very often have `idleLock=true` even for the policy you'd consider "unlocked" — the flap is *per-cat* unlocked after RFID detection rather than *idle*-unlocked. With our previous heuristic the lock UI never moved: activating "without Alarm" (idleLock=true) immediately re-rendered as Locked. We now derive the HomeKit Lock state from the active policy's *name* whenever the user has configured `unlockPolicyName` or `lockPolicyName`. The `idleLock` heuristic remains the fallback when no name is configured.
+
 ## [0.2.11]
 
 ### Fixed

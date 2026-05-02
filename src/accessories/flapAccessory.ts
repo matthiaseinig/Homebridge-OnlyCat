@@ -346,7 +346,24 @@ export class FlapAccessory {
       this.device.deviceTransitPolicyId !== undefined
         ? this.policies.get(this.device.deviceTransitPolicyId)
         : undefined;
-    const idleLock = policy?.transitPolicy?.idleLock;
+    if (!policy) return LOCK_UNKNOWN;
+
+    // When the user has explicitly named lock/unlock policies, those names ARE
+    // the source of truth — independent of idleLock. OnlyCat policies often
+    // have idleLock=true even when they "let cats through" (the flap is idle-
+    // locked and only unlocks per-cat after RFID detection); a user's mental
+    // "unlocked" state can map to a policy that idleLock-wise is locked.
+    const activeName = policy.name?.toLowerCase();
+    if (activeName) {
+      if (this.lockPolicyName && activeName === this.lockPolicyName.toLowerCase()) {
+        return LOCK_SECURED;
+      }
+      if (this.unlockPolicyName && activeName === this.unlockPolicyName.toLowerCase()) {
+        return LOCK_UNSECURED;
+      }
+    }
+
+    const idleLock = policy.transitPolicy?.idleLock;
     if (idleLock === true) return LOCK_SECURED;
     if (idleLock === false) return LOCK_UNSECURED;
     return LOCK_UNKNOWN;
