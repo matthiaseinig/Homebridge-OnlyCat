@@ -2,6 +2,16 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2]
+
+### Fixed
+
+- **HKSV recording configuration now declares an audio codec.** Camera attachment was failing on every flap with `CameraRecordingOptions.audio: At least one audio codec configuration must be specified!`. We declare AAC-LC at 24 kHz mono / variable bit-rate; the actual stream remains silent (OnlyCat clips have no audio).
+
+### Added
+
+- `unlockPolicyName` and `lockPolicyName` config options. Set the name of the OnlyCat transit policy to activate when the HomeKit Cat Flap lock is unlocked or locked. Useful when you want a specific behaviour like "No Contraband" on unlock or "All Locked" on lock instead of the auto-pick first-match heuristic. Names are matched case-insensitively. Falls back to the previous heuristic when blank or when the named policy doesn't exist (with a warning).
+
 ## [0.2.1]
 
 ### Fixed

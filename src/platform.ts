@@ -22,6 +22,10 @@ export interface OnlyCatPlatformConfig extends PlatformConfig {
   ffmpegPath?: string;
   /** Suppress the Camera service. Live view + HKSV will be unavailable. */
   disableCamera?: boolean;
+  /** Name of the OnlyCat policy to activate when HomeKit unlocks the flap. */
+  unlockPolicyName?: string;
+  /** Name of the OnlyCat policy to activate when HomeKit locks the flap. */
+  lockPolicyName?: string;
   /**
    * On startup, replay events from the last N days through HKSV. 0 disables.
    * HomeKit will timestamp replayed clips at the moment of playback, not the
@@ -294,6 +298,8 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
       accessory,
       ffmpegPath: this.config.ffmpegPath,
       disableCamera: this.config.disableCamera,
+      unlockPolicyName: this.config.unlockPolicyName,
+      lockPolicyName: this.config.lockPolicyName,
     });
     this.flaps.set(record.deviceId, flap);
 

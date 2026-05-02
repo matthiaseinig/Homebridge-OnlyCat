@@ -31,6 +31,16 @@
         "type": "string",
         "description": "Optional override for the ffmpeg binary used by the camera and HKSV pipelines. Leave blank to resolve via PATH."
       },
+      "unlockPolicyName": {
+        "title": "Policy to activate when unlocking",
+        "type": "string",
+        "description": "Name of the OnlyCat transit policy to activate when the HomeKit Cat Flap lock is unlocked. Case-insensitive. Leave blank to auto-pick the first policy with idleLock=false."
+      },
+      "lockPolicyName": {
+        "title": "Policy to activate when locking",
+        "type": "string",
+        "description": "Name of the OnlyCat transit policy to activate when the HomeKit Cat Flap lock is locked. Case-insensitive. Leave blank to auto-pick the first policy with idleLock=true."
+      },
       "disableCamera": {
         "title": "Disable camera service",
         "type": "boolean",

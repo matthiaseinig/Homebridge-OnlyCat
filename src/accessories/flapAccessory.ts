@@ -51,6 +51,10 @@ export interface FlapAccessoryDeps {
   ffmpegPath?: string;
   /** When true, skip CameraController wiring. Default false (camera on). */
   disableCamera?: boolean;
+  /** Name of the OnlyCat policy to activate when HomeKit unlocks the flap. */
+  unlockPolicyName?: string;
+  /** Name of the OnlyCat policy to activate when HomeKit locks the flap. */
+  lockPolicyName?: string;
 }
 
 interface InProgressEvent {
@@ -69,6 +73,8 @@ export class FlapAccessory {
 
   private readonly policies = new Map<number, DeviceTransitPolicy>();
   private readonly eventCache = new EventCache();
+  private readonly unlockPolicyName?: string;
+  private readonly lockPolicyName?: string;
 
   private activityService!: Service;
   private contrabandService!: Service;
@@ -87,6 +93,8 @@ export class FlapAccessory {
     this.client = deps.client;
     this.device = deps.device;
     this.accessory = deps.accessory;
+    this.unlockPolicyName = deps.unlockPolicyName?.trim() || undefined;
+    this.lockPolicyName = deps.lockPolicyName?.trim() || undefined;
 
     this.configureInformation();
 
@@ -346,7 +354,7 @@ export class FlapAccessory {
 
   private async handleLockTarget(value: CharacteristicValue): Promise<void> {
     const desiredSecured = value === LOCK_SECURED;
-    const target = this.findPolicyMatching(desiredSecured);
+    const target = this.findPolicyForLockState(desiredSecured);
     if (!target) {
       this.log.warn(
         "No transit policy matches the requested lock state for %s; flap stays in %s.",
@@ -378,6 +386,25 @@ export class FlapAccessory {
         LOCK_JAMMED,
       );
     }
+  }
+
+  private findPolicyForLockState(
+    secured: boolean,
+  ): DeviceTransitPolicy | undefined {
+    const configuredName = secured ? this.lockPolicyName : this.unlockPolicyName;
+    if (configuredName) {
+      const target = configuredName.toLowerCase();
+      for (const policy of this.policies.values()) {
+        if (policy.name?.toLowerCase() === target) return policy;
+      }
+      this.log.warn(
+        "Configured %s policy %j not found on flap %s — falling back to the first matching idleLock policy.",
+        secured ? "lock" : "unlock",
+        configuredName,
+        this.device.deviceId,
+      );
+    }
+    return this.findPolicyMatching(secured);
   }
 
   private findPolicyMatching(secured: boolean): DeviceTransitPolicy | undefined {
@@ -525,6 +552,9 @@ export const __testing = {
 };
 
 function defaultRecordingOptions(): unknown {
+  // HKSV requires at least one audio codec configuration even if the camera
+  // produces no audio. Declaring AAC-LC at 24 kHz mono / variable bit-rate
+  // satisfies the validator; the actual stream is still silent.
   return {
     prebufferLength: 0,
     eventTriggerOptions: 1, // motion
@@ -545,7 +575,14 @@ function defaultRecordingOptions(): unknown {
       ],
     },
     audio: {
-      codecs: [],
+      codecs: [
+        {
+          type: 0, // AAC_LC
+          audioChannels: 1,
+          samplerate: 2, // 24 kHz
+          bitrateMode: 0, // VARIABLE
+        },
+      ],
     },
   };
 }
