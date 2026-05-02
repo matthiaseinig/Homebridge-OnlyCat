@@ -41,6 +41,7 @@ interface PrepareInfo {
   videoPort: number;
   videoSrtpKey: Buffer;
   videoSrtpSalt: Buffer;
+  audioPort: number;
 }
 
 interface ActiveSession {
@@ -113,27 +114,56 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     request: PrepareStreamRequest,
     callback: PrepareStreamCallback,
   ): Promise<void> {
+    const safeCallback = (
+      err: Error | undefined,
+      response?: Parameters<PrepareStreamCallback>[1],
+    ): void => {
+      try {
+        callback(err, response);
+      } catch (cbErr) {
+        // HAP-NodeJS wraps the callback in `once`. If iOS or HAP rejects our
+        // response synchronously, the framework will already have invoked it.
+        // Swallow the redundant call so the bridge doesn't crash.
+        this.log.debug(
+          "prepareStream callback double-invoked: %s",
+          (cbErr as Error).message,
+        );
+      }
+    };
+
     try {
       const videoReturnPort = await this.portAllocator();
+      const audioReturnPort = await this.portAllocator();
       this.sessions.set(request.sessionID, {
         prepare: {
           targetAddress: request.targetAddress,
           videoPort: request.video.port,
           videoSrtpKey: request.video.srtp_key,
           videoSrtpSalt: request.video.srtp_salt,
+          audioPort: request.audio.port,
         },
       });
-      callback(undefined, {
+      safeCallback(undefined, {
         video: {
           port: videoReturnPort,
           ssrc: this.api.hap.CameraController.generateSynchronisationSource(),
           srtp_key: request.video.srtp_key,
           srtp_salt: request.video.srtp_salt,
         },
+        // iOS expects an audio block in the response even when we don't deliver
+        // audio packets — it allocates an audio session and waits to be told
+        // which port + SRTP context to use. We return valid SRTP material;
+        // ffmpeg itself doesn't actually emit audio (still uses -an).
+        audio: {
+          port: audioReturnPort,
+          ssrc: this.api.hap.CameraController.generateSynchronisationSource(),
+          srtp_key: request.audio.srtp_key,
+          srtp_salt: request.audio.srtp_salt,
+        },
       });
     } catch (err) {
       this.log.error("prepareStream failed: %s", (err as Error).message);
-      callback(err as Error);
+      safeCallback(err as Error);
     }
   }
 

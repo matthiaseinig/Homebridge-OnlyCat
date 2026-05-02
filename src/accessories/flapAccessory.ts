@@ -625,6 +625,10 @@ function defaultRecordingOptions(): unknown {
 
 function defaultStreamingOptions(): unknown {
   // Minimal H.264-only profile: HK accepts a copy of the OnlyCat clip's H.264.
+  // iOS rejects a streaming options struct with an empty audio.codecs list and
+  // throws "Audio was enabled but not supplied" during prepareStream. Declare
+  // AAC-ELD as supported even though we don't actually emit audio — the audio
+  // RTP session is established but never carries packets.
   return {
     supportedCryptoSuites: [0],
     video: {
@@ -641,7 +645,12 @@ function defaultStreamingOptions(): unknown {
     },
     audio: {
       twoWayAudio: false,
-      codecs: [],
+      codecs: [
+        {
+          type: "AAC-eld",
+          samplerate: 16,
+        },
+      ],
     },
   };
 }

@@ -158,7 +158,7 @@ describe("OnlyCatStreamingDelegate", () => {
     expect(cb).toHaveBeenCalledWith(undefined, expect.any(Buffer));
   });
 
-  it("prepareStream allocates a port and returns SSRC", async () => {
+  it("prepareStream allocates ports and returns video + audio SSRC", async () => {
     const delegate = new OnlyCatStreamingDelegate({
       api: makeApi(),
       log: createMockLogger(),
@@ -169,8 +169,53 @@ describe("OnlyCatStreamingDelegate", () => {
     const cb = vi.fn();
     await delegate.prepareStream(prepareRequest() as never, cb);
     expect(cb).toHaveBeenCalledWith(undefined, expect.objectContaining({
-      video: expect.objectContaining({ port: 12345, ssrc: 12345 }),
+      video: expect.objectContaining({ port: 12345 }),
+      audio: expect.objectContaining({ port: 12345 }),
     }));
+  });
+
+  it("prepareStream is idempotent if the framework double-calls the callback", async () => {
+    const log = createMockLogger();
+    const delegate = new OnlyCatStreamingDelegate({
+      api: makeApi(),
+      log,
+      deviceId: "d",
+      eventCache: new EventCache(),
+      portAllocator: async () => 12345,
+    });
+    let calls = 0;
+    const cb = ((..._args: unknown[]) => {
+      calls += 1;
+      if (calls === 1) {
+        // simulate hap-nodejs's once() guard rejecting subsequent calls
+        throw new Error("already called");
+      }
+    }) as never;
+    await delegate.prepareStream(prepareRequest() as never, cb);
+    // Should not throw out of prepareStream; redundant call swallowed and logged.
+    expect(calls).toBeGreaterThanOrEqual(1);
+    expect(log.debug).toHaveBeenCalledWith(
+      expect.stringContaining("double-invoked"),
+      expect.any(String),
+    );
+  });
+
+  it("port allocator failure surfaces as an error without leaving a session", async () => {
+    let count = 0;
+    const delegate = new OnlyCatStreamingDelegate({
+      api: makeApi(),
+      log: createMockLogger(),
+      deviceId: "d",
+      eventCache: new EventCache(),
+      portAllocator: async () => {
+        count += 1;
+        if (count === 1) return 7000;
+        throw new Error("audio-port-fail");
+      },
+    });
+    const cb = vi.fn();
+    await delegate.prepareStream(prepareRequest() as never, cb);
+    expect(cb).toHaveBeenCalledWith(expect.any(Error), undefined);
   });
 
   it("prepareStream surfaces errors", async () => {
@@ -185,7 +230,7 @@ describe("OnlyCatStreamingDelegate", () => {
     });
     const cb = vi.fn();
     await delegate.prepareStream(prepareRequest() as never, cb);
-    expect(cb).toHaveBeenCalledWith(expect.any(Error));
+    expect(cb).toHaveBeenCalledWith(expect.any(Error), undefined);
   });
 
   it("start with no cached event quietly stops the session", async () => {

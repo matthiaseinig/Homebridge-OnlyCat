@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8]
+
+### Fixed
+
+- **Camera live view no longer crashes the bridge.** When iOS opened the camera, `prepareStream` returned only a `video` block. HAP-NodeJS validated the response and threw `Audio was enabled but not supplied in PrepareStreamResponse!`, which caused our error path to invoke the once-only callback a second time, killing the whole Homebridge process. v0.2.8 declares AAC-ELD support in the streaming options, allocates an audio port, and returns a valid `audio` block in the prepare response (ffmpeg still emits no audio packets — the audio RTP session is established but quiet). The error path is also guarded so any HAP synchronous rejection is logged at debug rather than crashing.
+
 ## [0.2.7]
 
 ### Fixed
