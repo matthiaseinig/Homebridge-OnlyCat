@@ -286,6 +286,13 @@ describe("OnlyCatStreamingDelegate", () => {
     // OnlyCat's VOD HLS playlists — make sure it is NOT in the args.
     expect(args).not.toContain("-live_start_index");
     expect(args.some((a: string) => a.startsWith("srtp://192.168.1.20"))).toBe(true);
+    // -srtp_out_params must be a SINGLE base64(key||salt), not two
+    // base64-strings concatenated. Verify it round-trips to the right length
+    // (16 + 14 = 30 bytes → 40 base64 chars).
+    const paramsIdx = args.indexOf("-srtp_out_params");
+    expect(paramsIdx).toBeGreaterThan(-1);
+    const decoded = Buffer.from(args[paramsIdx + 1]!, "base64");
+    expect(decoded.length).toBe(30);
   });
 
   it("stop terminates the running ffmpeg session", async () => {

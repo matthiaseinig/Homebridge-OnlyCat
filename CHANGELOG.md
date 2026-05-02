@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.10]
+
+### Fixed
+
+- **SRTP output now opens.** ffmpeg was rejecting the live-stream output URL with `Error opening output srtp://...: Invalid argument` because `-srtp_out_params` was being passed `base64(key) || base64(salt)` (two encoded strings concatenated). ffmpeg expects `base64(key || salt)` — concatenate the binary buffers first, then base64-encode once. Live view should now actually deliver video to iOS.
+
 ## [0.2.9]
 
 ### Fixed

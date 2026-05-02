@@ -204,6 +204,13 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     const prepare = session.prepare;
 
     const sourceUrl = this.buildSourceUrl(event);
+    // -srtp_out_params expects a SINGLE base64 string of (key || salt) bytes,
+    // not the concatenation of two separate base64 encodings. iOS sends two
+    // raw buffers; we concatenate them before base64-encoding.
+    const srtpOutParams = Buffer.concat([
+      prepare.videoSrtpKey,
+      prepare.videoSrtpSalt,
+    ]).toString("base64");
     const args = [
       "-hide_banner",
       "-loglevel",
@@ -233,7 +240,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "-srtp_out_suite",
       "AES_CM_128_HMAC_SHA1_80",
       "-srtp_out_params",
-      `${prepare.videoSrtpKey.toString("base64")}${prepare.videoSrtpSalt.toString("base64")}`,
+      srtpOutParams,
       `srtp://${prepare.targetAddress}:${prepare.videoPort}?pkt_size=1316`,
     ];
 
