@@ -178,6 +178,13 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "-hide_banner",
       "-loglevel",
       "error",
+      // Pace the input at native frame-rate so iOS receives a smooth RTP stream.
+      "-re",
+      // OnlyCat HLS playlists are short, completed clips. ffmpeg's HLS demuxer
+      // defaults to -live_start_index -3 (start ~3 segments from the end).
+      // Force segment 0 so the cat's full trip plays from the beginning.
+      "-live_start_index",
+      "0",
       "-i",
       sourceUrl,
       "-an",

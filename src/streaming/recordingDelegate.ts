@@ -122,15 +122,34 @@ export class OnlyCatRecordingDelegate implements CameraRecordingDelegate {
     const sourceUrl =
       `${VIDEO_SOURCE_BASE}/${encodeURIComponent(this.deviceId)}/${event.eventId}` +
       `?t=${encodeURIComponent(event.accessToken ?? "")}`;
+    // OnlyCat HLS clips are silent. HKSV declares AAC support in its
+    // recordingOptions, so iOS expects fragments with both video + audio
+    // tracks. We synthesise a silent AAC track via lavfi's `anullsrc` and
+    // mux it alongside the copied H.264 video. `-shortest` ends the output
+    // when the (finite) HLS clip ends, ignoring the infinite silent source.
     return [
       "-hide_banner",
       "-loglevel",
       "error",
+      "-live_start_index",
+      "0",
       "-i",
       sourceUrl,
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=mono:sample_rate=24000",
+      "-shortest",
+      "-map",
+      "0:v",
+      "-map",
+      "1:a",
       "-c:v",
       "copy",
-      "-an",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "24k",
       "-f",
       "mp4",
       "-movflags",

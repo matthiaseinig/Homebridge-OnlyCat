@@ -2,6 +2,13 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5]
+
+### Fixed
+
+- **Live view now plays the event clip from the start.** ffmpeg's HLS demuxer defaults to `-live_start_index -3` (start ~3 segments from the end), which for a finished cat-flap clip meant we were sending only the last second or two — sometimes nothing at all. We now force `-live_start_index 0` and add `-re` for native frame-rate pacing so iOS sees a smooth stream of the whole event.
+- **HKSV recording pipeline produces fragments with a silent audio track.** Our `defaultRecordingOptions` declared AAC-LC support, but ffmpeg was outputting video-only (`-an`). Some iOS HKSV implementations reject fragments whose track set doesn't match the declared codec list — that's the most likely reason recordings never landed in the Home timeline. We now synthesise an infinite silent mono AAC source via `anullsrc`, mux it alongside the copied H.264 video, and use `-shortest` so output ends with the (finite) HLS clip.
+
 ## [0.2.4]
 
 ### Fixed

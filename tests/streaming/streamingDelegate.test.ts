@@ -232,6 +232,11 @@ describe("OnlyCatStreamingDelegate", () => {
     expect(args).toContain("-i");
     expect(args).toContain("https://gateway.onlycat.com/sharing/video/d/11?t=tok-X");
     expect(args).toContain("-an");
+    expect(args).toContain("-re");
+    // -live_start_index 0 ensures HLS plays from the first segment, not the end.
+    const liveIdx = args.indexOf("-live_start_index");
+    expect(liveIdx).toBeGreaterThan(-1);
+    expect(args[liveIdx + 1]).toBe("0");
     expect(args.some((a: string) => a.startsWith("srtp://192.168.1.20"))).toBe(true);
   });
 
