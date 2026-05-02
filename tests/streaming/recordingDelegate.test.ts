@@ -208,9 +208,7 @@ describe("OnlyCatRecordingDelegate", () => {
     const [, args] = spawner.mock.calls[0]!;
     expect(args).toContain("https://gateway.onlycat.com/sharing/video/d-1/5?t=tok-X");
     expect(args).toContain("frag_keyframe+empty_moov+default_base_moof");
-    const liveIdx = args.indexOf("-live_start_index");
-    expect(liveIdx).toBeGreaterThan(-1);
-    expect(args[liveIdx + 1]).toBe("0");
+    expect(args).not.toContain("-live_start_index");
     // Silent-audio synthesis so HKSV fragments match the declared AAC support.
     expect(args).toContain("anullsrc=channel_layout=mono:sample_rate=24000");
     expect(args).toContain("-shortest");

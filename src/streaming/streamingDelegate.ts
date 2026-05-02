@@ -210,16 +210,13 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "error",
       // Pace the input at native frame-rate so iOS receives a smooth RTP stream.
       "-re",
-      // OnlyCat HLS playlists are short, completed clips. ffmpeg's HLS demuxer
-      // defaults to -live_start_index -3 (start ~3 segments from the end).
-      // Force segment 0 so the cat's full trip plays from the beginning.
-      "-live_start_index",
-      "0",
       // iOS Home expects a *continuous* live feed. OnlyCat events are 5–10 s
       // clips, so once the clip ends iOS sees the stream end and gives up.
       // Loop the clip indefinitely — the user always sees the latest event
       // playing on repeat. ffmpeg still exits cleanly when iOS stops the
-      // session.
+      // session. (OnlyCat HLS is VOD, so ffmpeg starts at segment 0 by
+      // default; no -live_start_index needed — that flag was removed in
+      // ffmpeg 8.x anyway.)
       "-stream_loop",
       "-1",
       "-i",

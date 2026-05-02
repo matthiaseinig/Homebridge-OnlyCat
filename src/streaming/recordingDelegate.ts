@@ -131,8 +131,6 @@ export class OnlyCatRecordingDelegate implements CameraRecordingDelegate {
       "-hide_banner",
       "-loglevel",
       "error",
-      "-live_start_index",
-      "0",
       "-i",
       sourceUrl,
       "-f",

@@ -331,6 +331,32 @@ describe("OnlyCatPlatform discovery", () => {
     expect(catAccessories).toHaveLength(1);
   });
 
+  it("re-runs of discoverDevices update existing cat accessories in place", async () => {
+    const { platform, api, socket } = buildPlatform();
+    socket.__ackResponses.set("getDevices", [{ deviceId: "dev-A" }]);
+    socket.__ackResponses.set("getDevice", () => ({ deviceId: "dev-A" }));
+    socket.__ackResponses.set("getDeviceTransitPolicies", []);
+    socket.__ackResponses.set("getDeviceEvents", []);
+    socket.__ackResponses.set("getLastSeenRfidCodesByDevice", [{ rfidCode: "rfid-1" }]);
+    socket.__ackResponses.set("getRfidProfile", () => ({
+      deviceId: "dev-A",
+      rfidCode: "rfid-1",
+      label: "Whiskers",
+    }));
+    api.emit("didFinishLaunching");
+    await new Promise((r) => setTimeout(r, 10));
+    const before = api.registeredAccessories.length;
+
+    // Second discovery — same cat, should update in place rather than register again.
+    socket.__ackResponses.set("getRfidProfile", () => ({
+      deviceId: "dev-A",
+      rfidCode: "rfid-1",
+      label: "Whiskers v2",
+    }));
+    await platform.discoverDevices();
+    expect(api.registeredAccessories.length).toBe(before);
+  });
+
   it("connect failure short-circuits discovery", async () => {
     const log = createMockLogger();
     const api = createMockApi();

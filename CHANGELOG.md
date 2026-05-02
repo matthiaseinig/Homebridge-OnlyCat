@@ -2,6 +2,13 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9]
+
+### Fixed
+
+- **Live view actually plays now.** ffmpeg 8.x removed the `-live_start_index` option, which we were passing to both the streaming and HKSV recording pipelines. Every ffmpeg invocation died at parse time with `Option not found`, leaving iOS Home stuck on a spinner over the snapshot. The flag was redundant for OnlyCat's VOD-style HLS (segment 0 is the default) — removed from both pipelines.
+- ffmpeg's last 12 stderr lines are now logged at `warn` level on a non-zero exit, so future ffmpeg failures surface immediately instead of being buried at debug.
+
 ## [0.2.8]
 
 ### Fixed

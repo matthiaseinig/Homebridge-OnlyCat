@@ -74,6 +74,49 @@ describe("FfmpegProcess", () => {
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("exited"), 137);
   });
 
+  it("dumps the recent stderr tail on non-zero exit", () => {
+    const log = createMockLogger();
+    const child = buildFakeChild();
+    new FfmpegProcess({
+      command: "ffmpeg",
+      args: [],
+      log,
+      spawner: ((..._a: unknown[]) => child) as never,
+    });
+    child.stderr.emit("data", Buffer.from("some warning\n"));
+    child.stderr.emit("data", Buffer.from("Error opening input\nOption not found\n"));
+    child.emit("exit", 8);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("exited"), 8);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("stderr tail"),
+      expect.stringContaining("Option not found"),
+    );
+  });
+
+  it("clamps the stderr ring buffer to the most recent lines", () => {
+    const log = createMockLogger();
+    const child = buildFakeChild();
+    new FfmpegProcess({
+      command: "ffmpeg",
+      args: [],
+      log,
+      spawner: ((..._a: unknown[]) => child) as never,
+    });
+    // Push more than STDERR_TAIL_LINES (12) entries so old ones must drop.
+    for (let i = 0; i < 20; i += 1) {
+      child.stderr.emit("data", Buffer.from(`line-${i}\n`));
+    }
+    child.emit("exit", 8);
+    const calls = (log.warn as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const tailCall = calls.find(
+      (c) => typeof c[1] === "string" && (c[1] as string).includes("line-"),
+    );
+    expect(tailCall).toBeDefined();
+    // First few lines should have been evicted
+    expect(tailCall![1] as string).not.toContain("line-0\n");
+    expect(tailCall![1] as string).toContain("line-19");
+  });
+
   it("does not warn on zero or null exit code", () => {
     const log = createMockLogger();
     const child = buildFakeChild();
