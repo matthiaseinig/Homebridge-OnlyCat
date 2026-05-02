@@ -92,6 +92,13 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
       }
     });
 
+    // Re-subscribe to event pushes whenever we (re-)connect. Without this,
+    // the gateway never delivers deviceEventUpdate / eventUpdate after a
+    // reconnect.
+    this.client.on("connect", () => {
+      void this.refreshSubscriptions();
+    });
+
     api.on("didFinishLaunching", () => {
       void this.start();
     });
@@ -211,10 +218,64 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
       });
       const flap = this.adoptFlap(record);
       await this.loadPoliciesFor(record.deviceId, flap);
+      await this.subscribeToEventsFor(record.deviceId, flap);
       await this.loadPetsFor(record.deviceId, seenCats);
     }
 
     this.pruneStaleAccessories(seenDevices, seenCats);
+  }
+
+  /**
+   * Subscribes to event pushes for a device and primes the event cache from
+   * the most recent concluded event so snapshots and live-view fallbacks work
+   * before the next event arrives.
+   */
+  async subscribeToEventsFor(deviceId: string, flap: FlapAccessory): Promise<void> {
+    if (!this.client) return;
+    try {
+      const events = await this.client.call("getDeviceEvents", {
+        deviceId,
+        subscribe: true,
+      });
+      // Most recent first.
+      const sorted = [...events].sort((a, b) => {
+        const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return bt - at;
+      });
+      const latest = sorted.find((e) => e.accessToken && e.posterFrameIndex !== undefined);
+      if (latest) {
+        flap.primeLastEvent(latest);
+        this.log.debug(
+          "Primed event cache for %s with event %d",
+          deviceId,
+          latest.eventId,
+        );
+      }
+    } catch (err) {
+      this.log.warn(
+        "Could not subscribe to events for %s: %s",
+        deviceId,
+        (err as Error).message,
+      );
+    }
+  }
+
+  /** Re-runs event subscription for every adopted flap. Used on reconnect. */
+  async refreshSubscriptions(): Promise<void> {
+    if (!this.client) return;
+    for (const [deviceId, flap] of this.flaps) {
+      try {
+        await this.client.call("getDevice", { deviceId, subscribe: true });
+        await this.subscribeToEventsFor(deviceId, flap);
+      } catch (err) {
+        this.log.warn(
+          "Failed to refresh subscriptions for %s: %s",
+          deviceId,
+          (err as Error).message,
+        );
+      }
+    }
   }
 
   private async loadPoliciesFor(

@@ -421,8 +421,25 @@ export class FlapAccessory {
   ): Service {
     const existing = this.findService(ctor, subtype);
     const service = existing ?? this.accessory.addService(ctor, name, subtype);
-    service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+    const Characteristic = this.api.hap.Characteristic;
+    service.setCharacteristic(Characteristic.Name, name);
+    // ConfiguredName is what iOS Home actually displays for service tiles in
+    // newer versions. HAP-NodeJS doesn't list it as required/optional on
+    // sensor / switch / lock services, so it logs a warning per service —
+    // that's cosmetic, the characteristic is still exposed correctly.
+    if (Characteristic.ConfiguredName) {
+      service.setCharacteristic(Characteristic.ConfiguredName, name);
+    }
     return service;
+  }
+
+  /** Pre-populate the event cache from a previously-recorded event. */
+  primeLastEvent(event: OnlyCatEvent): void {
+    this.eventCache.apply({
+      ...event,
+      deviceId: this.device.deviceId,
+      eventId: event.eventId,
+    });
   }
 
   private findService(

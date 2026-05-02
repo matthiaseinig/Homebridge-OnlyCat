@@ -2,6 +2,14 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4]
+
+### Fixed
+
+- **Plugin now subscribes to live event pushes.** The previous releases only called `getDevice { subscribe: true }` after discovery, but never `getDeviceEvents { subscribe: true }`. The OnlyCat gateway therefore stopped delivering `deviceEventUpdate` and `eventUpdate` pushes — events fired in the OnlyCat app would not reach the plugin. As a result the camera tile reported "no event clip available" on every live-view request and HKSV had nothing to record. We now subscribe on startup and re-subscribe on every reconnect.
+- **Snapshot pre-population.** The most recent concluded event from `getDeviceEvents` is fed into the event cache on startup, so the camera tile shows the latest poster frame immediately rather than waiting for the next live event.
+- **Service names appear in the Home app again.** Restored `ConfiguredName` (removed in 0.2.3) on every service. iOS Home reads `ConfiguredName` over `Name` for service tiles in newer versions, so the previous removal made every service show up as the generic type label ("Motion Sensor", "Occupancy Sensor 2", "Switch"). HAP-NodeJS still logs a cosmetic warning when adding `ConfiguredName` to services that don't list it as required/optional — the characteristic is exposed correctly regardless.
+
 ## [0.2.3]
 
 ### Fixed
