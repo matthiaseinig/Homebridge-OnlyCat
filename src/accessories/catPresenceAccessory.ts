@@ -6,6 +6,7 @@ import type {
   WithUUID,
 } from "homebridge";
 import type { OnlyCatClient } from "../api/client.js";
+import { applyServiceName } from "./flapAccessory.js";
 import type {
   EventPushPayload,
   EventSummaryUpdatePayload,
@@ -107,8 +108,7 @@ export class CatPresenceAccessory {
       (s) => s.UUID === ctor.UUID && s.subtype === subtype,
     );
     const service = existing ?? this.accessory.addService(ctor, name, subtype);
-    (service as Service & { displayName: string }).displayName = name;
-    service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+    applyServiceName(service, name, this.api.hap.Characteristic);
     return service;
   }
 

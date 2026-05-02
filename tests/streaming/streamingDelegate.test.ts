@@ -237,6 +237,10 @@ describe("OnlyCatStreamingDelegate", () => {
     const liveIdx = args.indexOf("-live_start_index");
     expect(liveIdx).toBeGreaterThan(-1);
     expect(args[liveIdx + 1]).toBe("0");
+    // -stream_loop -1 makes the finite event clip behave as a continuous feed.
+    const loopIdx = args.indexOf("-stream_loop");
+    expect(loopIdx).toBeGreaterThan(-1);
+    expect(args[loopIdx + 1]).toBe("-1");
     expect(args.some((a: string) => a.startsWith("srtp://192.168.1.20"))).toBe(true);
   });
 

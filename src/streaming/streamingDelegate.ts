@@ -185,6 +185,13 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       // Force segment 0 so the cat's full trip plays from the beginning.
       "-live_start_index",
       "0",
+      // iOS Home expects a *continuous* live feed. OnlyCat events are 5–10 s
+      // clips, so once the clip ends iOS sees the stream end and gives up.
+      // Loop the clip indefinitely — the user always sees the latest event
+      // playing on repeat. ffmpeg still exits cleanly when iOS stops the
+      // session.
+      "-stream_loop",
+      "-1",
       "-i",
       sourceUrl,
       "-an",

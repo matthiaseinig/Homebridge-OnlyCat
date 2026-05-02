@@ -2,6 +2,14 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7]
+
+### Fixed
+
+- **Live view shows the most recent event continuously.** OnlyCat clips are short (5–10 s); once ffmpeg reached the end iOS Home saw the stream end and stayed on the snapshot. Live streaming now passes `-stream_loop -1` so the latest event plays on repeat for as long as the user has the camera open. Each new live-view session re-reads the cache, so the most recent event is what loops.
+- **Reinstated `ConfiguredName` with a write interceptor.** iOS Home's Camera Details pairing dialog writes generic labels back into `ConfiguredName`. We re-add the characteristic with our descriptive value and an `onSet` handler that swallows the iOS write — the label sticks across pairing and survives the dialog. The plugin is now in charge of service names; the user does not need to type them in during pairing.
+- Service-naming logic is centralised in a single `applyServiceName` helper used by both flap and cat-presence accessories.
+
 ## [0.2.6]
 
 ### Fixed
