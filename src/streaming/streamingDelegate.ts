@@ -237,7 +237,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     const args = [
       "-hide_banner",
       "-loglevel",
-      "error",
+      "warning",
       // Pace the input at native frame-rate so iOS receives a smooth RTP stream.
       "-re",
       // Loop the locally-downloaded clip indefinitely — iOS expects a
@@ -247,8 +247,27 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "-i",
       tempFile,
       "-an",
+      // Re-encode to H.264 Baseline. OnlyCat clips are encoded in High
+      // profile, which iOS HKSV cannot reliably decode via passthrough —
+      // the result is a frozen snapshot with the spinner. Baseline is the
+      // safest interoperable profile. ultrafast + zerolatency keep CPU
+      // cost negligible at 800x600 / 10 fps. yuv420p ensures iOS-supported
+      // chroma; -bf 0 disables B-frames (Baseline doesn't allow them);
+      // -g sets the keyframe interval so iOS sees a fresh I-frame quickly.
       "-c:v",
-      "copy",
+      "libx264",
+      "-profile:v",
+      "baseline",
+      "-preset",
+      "ultrafast",
+      "-tune",
+      "zerolatency",
+      "-pix_fmt",
+      "yuv420p",
+      "-bf",
+      "0",
+      "-g",
+      "30",
       "-f",
       "rtp",
       "-payload_type",

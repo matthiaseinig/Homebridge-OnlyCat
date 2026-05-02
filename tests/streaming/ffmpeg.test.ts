@@ -71,7 +71,7 @@ describe("FfmpegProcess", () => {
       spawner: ((..._a: unknown[]) => child) as never,
     });
     child.emit("exit", 137);
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("exited"), 137);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("exited"), 137, expect.anything());
   });
 
   it("dumps the recent stderr tail on non-zero exit", () => {
@@ -86,7 +86,11 @@ describe("FfmpegProcess", () => {
     child.stderr.emit("data", Buffer.from("some warning\n"));
     child.stderr.emit("data", Buffer.from("Error opening input\nOption not found\n"));
     child.emit("exit", 8);
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("exited"), 8);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("exited"),
+      8,
+      expect.anything(),
+    );
     expect(log.warn).toHaveBeenCalledWith(
       expect.stringContaining("stderr tail"),
       expect.stringContaining("Option not found"),

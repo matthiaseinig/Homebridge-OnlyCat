@@ -46,16 +46,20 @@ export class FfmpegProcess {
     this.child.on("error", (err) => {
       this.log.error("ffmpeg failed to start: %s", err.message);
     });
-    this.child.on("exit", (code) => {
+    this.child.on("exit", (code, signal) => {
       this.exited = true;
       if (code !== 0 && code !== null) {
-        this.log.warn("ffmpeg exited with code %d", code);
+        this.log.warn("ffmpeg exited with code %d (signal=%s)", code, signal ?? "none");
         if (this.stderrTail.length > 0) {
           this.log.warn(
             "ffmpeg stderr tail:\n%s",
             this.stderrTail.map((l) => `    ${l}`).join("\n"),
           );
+        } else {
+          this.log.warn("ffmpeg produced no stderr output");
         }
+      } else if (signal) {
+        this.log.debug("ffmpeg terminated by signal %s", signal);
       }
       opts.onExit?.(code);
     });
