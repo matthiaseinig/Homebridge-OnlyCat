@@ -2,6 +2,13 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6]
+
+### Fixed
+
+- **Service names now persist in iOS Home.** Setting `ConfiguredName` (introduced in 0.2.4) backfired because iOS Home's "Camera Details" pairing dialog writes its own generic labels ("Motion Sensor", "Occupancy Sensor 2", "Switch", etc.) back to that characteristic when the user taps Continue. iOS then renders services from `ConfiguredName` and ignores `Name`. The plugin no longer touches `ConfiguredName`; iOS falls back to `Name` and our descriptive labels ("Activity", "Contraband", "Breach", …) stay put. The HAP "Adding anyway" warnings are also gone.
+- Force `service.displayName` on every startup as well so cached accessories pick up the descriptive label, not whatever the cache had previously.
+
 ## [0.2.5]
 
 ### Fixed

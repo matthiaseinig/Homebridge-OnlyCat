@@ -421,15 +421,14 @@ export class FlapAccessory {
   ): Service {
     const existing = this.findService(ctor, subtype);
     const service = existing ?? this.accessory.addService(ctor, name, subtype);
-    const Characteristic = this.api.hap.Characteristic;
-    service.setCharacteristic(Characteristic.Name, name);
-    // ConfiguredName is what iOS Home actually displays for service tiles in
-    // newer versions. HAP-NodeJS doesn't list it as required/optional on
-    // sensor / switch / lock services, so it logs a warning per service —
-    // that's cosmetic, the characteristic is still exposed correctly.
-    if (Characteristic.ConfiguredName) {
-      service.setCharacteristic(Characteristic.ConfiguredName, name);
-    }
+    // Force the displayName + Name characteristic on every startup. We
+    // intentionally do NOT touch ConfiguredName: during the iOS "Camera
+    // Details" pairing dialog, iOS writes its own generic labels
+    // ("Motion Sensor", "Occupancy Sensor 2", ...) back into ConfiguredName,
+    // which then takes priority over Name. With ConfiguredName absent, iOS
+    // falls back to Name and our chosen labels stick.
+    (service as Service & { displayName: string }).displayName = name;
+    service.setCharacteristic(this.api.hap.Characteristic.Name, name);
     return service;
   }
 
