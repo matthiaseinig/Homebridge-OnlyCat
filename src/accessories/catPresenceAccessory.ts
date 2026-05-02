@@ -107,11 +107,7 @@ export class CatPresenceAccessory {
       (s) => s.UUID === ctor.UUID && s.subtype === subtype,
     );
     const service = existing ?? this.accessory.addService(ctor, name, subtype);
-    const Characteristic = this.api.hap.Characteristic;
-    service.setCharacteristic(Characteristic.Name, name);
-    if (Characteristic.ConfiguredName) {
-      service.setCharacteristic(Characteristic.ConfiguredName, name);
-    }
+    service.setCharacteristic(this.api.hap.Characteristic.Name, name);
     return service;
   }
 

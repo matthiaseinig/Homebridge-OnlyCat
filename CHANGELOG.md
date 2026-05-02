@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3]
+
+### Fixed
+
+- Remove the `ConfiguredName` characteristic added in 0.2.1. HAP-NodeJS doesn't list it as required/optional on most of the services we use (`MotionSensor`, `OccupancySensor`, `LockMechanism`, `Switch`), so it generated a warning per service at startup. The `Name` characteristic alone is sufficient for service labelling.
+
 ## [0.2.2]
 
 ### Fixed
