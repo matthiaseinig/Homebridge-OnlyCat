@@ -6,7 +6,12 @@ import type {
   WithUUID,
 } from "homebridge";
 import type { OnlyCatClient } from "../api/client.js";
-import type { EventPushPayload, RfidProfile, SubEvent } from "../api/types.js";
+import type {
+  EventPushPayload,
+  EventSummaryUpdatePayload,
+  RfidProfile,
+  SubEvent,
+} from "../api/types.js";
 
 const SUBTYPE_PRESENCE = "presence";
 const OCCUPANCY_DETECTED = 1;
@@ -28,6 +33,11 @@ export class CatPresenceAccessory {
 
   private profile: RfidProfile;
   private presenceService!: Service;
+  // Track whether the current event has produced a TRANSIT subevent for this cat.
+  // If yes, we trust the summary and ignore raw direction. If no transit was
+  // observed by the time the event ends, raw subevents (peeks) are ignored too —
+  // the cat didn't actually go anywhere.
+  private summaryTransitForCurrentEvent: number | null = null;
 
   constructor(deps: CatPresenceDeps) {
     this.api = deps.api;
@@ -45,6 +55,7 @@ export class CatPresenceAccessory {
 
     this.client.on("deviceEventUpdate", this.onEventUpdate);
     this.client.on("eventUpdate", this.onEventUpdate);
+    this.client.on("eventSummaryUpdate", this.onSummaryUpdate);
   }
 
   get rfidCode(): string {
@@ -101,15 +112,36 @@ export class CatPresenceAccessory {
 
   private onEventUpdate = (payload: EventPushPayload): void => {
     if (payload.deviceId !== this.deviceId) return;
+
+    // New event: reset our per-event transit memory.
+    if (this.summaryTransitForCurrentEvent !== payload.eventId) {
+      this.summaryTransitForCurrentEvent = null;
+    }
+
+    // Raw subevents are a fallback when no summary is yet available. Once the
+    // canonical summary has produced a TRANSIT for this event we ignore raw
+    // direction entirely — peeks would otherwise flip presence incorrectly.
+    if (this.summaryTransitForCurrentEvent === payload.eventId) return;
+
     const subevents = payload.subevents ?? [];
     const lastWithCat = [...subevents]
       .reverse()
       .find((s): s is SubEvent => s.rfidCode === this.rfidCode);
-    if (!lastWithCat) {
-      // Some pushes carry rfidCodes but no subevents — defer until subevents arrive.
-      return;
-    }
+    if (!lastWithCat) return;
     this.applyPresence(lastWithCat.direction === "INWARD");
+  };
+
+  private onSummaryUpdate = (payload: EventSummaryUpdatePayload): void => {
+    if (payload.deviceId !== this.deviceId) return;
+    if (!payload.body) return;
+    const transitForCat = [...payload.body.subevents]
+      .reverse()
+      .find(
+        (s) => s.rfidCode === this.rfidCode && s.action === "TRANSIT",
+      );
+    if (!transitForCat) return;
+    this.summaryTransitForCurrentEvent = payload.eventId;
+    this.applyPresence(transitForCat.direction === "INWARD");
   };
 
   private applyPresence(home: boolean): void {
@@ -128,5 +160,6 @@ export class CatPresenceAccessory {
   dispose(): void {
     this.client.off("deviceEventUpdate", this.onEventUpdate);
     this.client.off("eventUpdate", this.onEventUpdate);
+    this.client.off("eventSummaryUpdate", this.onSummaryUpdate);
   }
 }

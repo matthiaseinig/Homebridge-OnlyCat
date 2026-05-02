@@ -125,7 +125,7 @@ describe("FlapAccessory", () => {
     new FlapAccessory({ api, log, client, device, accessory: asPlatformAccessory(accessory) });
     new FlapAccessory({ api, log, client, device, accessory: asPlatformAccessory(accessory) });
     expect(accessory.services.filter((s) => s.type === "MotionSensor")).toHaveLength(1);
-    expect(accessory.services.filter((s) => s.type === "OccupancySensor")).toHaveLength(3);
+    expect(accessory.services.filter((s) => s.type === "OccupancySensor")).toHaveLength(5);
   });
 
   it("applyDeviceUpdate refreshes AccessoryInformation", () => {

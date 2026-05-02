@@ -2,6 +2,23 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0]
+
+### Added
+
+- **Per-cat presence is now driven by OnlyCat's `getEventSummary` endpoint.** When a flap event starts, the plugin subscribes to its server-computed summary and updates presence only on canonical `TRANSIT` subevents. Peeks, denies, and breaches no longer flip presence — fixing the most common false-positive ("cat looked through the flap → marked outside").
+- **`OccupancySensor` "Breach"** on each flap. Fires when the summary reports a `BREACH` action — the lock was engaged but a cat transited anyway. Logs a warning at the same time. Use it to drive a security automation (lights, sirens, notifications).
+- **`OccupancySensor` "Blocked"** on each flap. Fires when the summary reports a `DENY` action — the door policy refused a cat. Useful for "unknown cat tried to enter" notifications.
+- Typed `getEventSummary` RPC + `eventSummaryUpdate` push event in the API client, with runtime payload validation.
+
+### Changed
+
+- `CatPresenceAccessory` retains the v0.1 raw-direction logic as a fallback for events that do not yet have a summary, so behaviour degrades gracefully when the (still-alpha) summary endpoint is unavailable.
+
+### Notes
+
+- The OnlyCat `getEventSummary` endpoint is flagged as alpha by the vendor. Per their docs, an early `TRANSIT` may be demoted to `PEEK` (or vice versa) as the algorithm processes more frames; the plugin therefore updates presence on every summary push, with the final summary winning when `processedFrameCount === frameCount`.
+
 ## [0.1.0]
 
 Initial public release.

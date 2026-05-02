@@ -28,6 +28,8 @@ Each is a Socket.IO ack-style call: `socket.emitWithAck(name, args)` and we awai
 | `getLastSeenRfidCodesByDevice` | `{ deviceId }` | `[{ rfidCode, timestamp }, …]` |
 | `getRfidProfile` | `{ deviceId, rfidCode }` | `RfidProfile` (includes `label`) |
 | `getDeviceErrorLogs` | `{ deviceId, limit, hours, measureName }` | error log entries |
+| `getEventSummary` | `{ deviceId, eventId, subscribe? }` | `EventSummary \| null` |
+| `runDeviceCommand` | `{ deviceId, command: "reboot" \| "unlock" }` | command result |
 
 ## Inbound (push) events
 
@@ -38,6 +40,7 @@ Each is a Socket.IO ack-style call: `socket.emitWithAck(name, args)` and we awai
 | `deviceUpdate` | Device state changed (policy, connectivity, settings) | `{ deviceId, type, body }` |
 | `deviceEventUpdate` | A new flap event started | partial `Event` (no `frameCount`) |
 | `eventUpdate` | An ongoing event progressed | partial `Event` (may add `rfidCodes`) |
+| `eventSummaryUpdate` | The ML-fused summary for an event has changed | `{ deviceId, eventId, type, body: EventSummary }` |
 | `getEvent` | Ack for `getEvent` RPC | `Event` |
 
 An event is **in progress** while `frameCount` is `null` and **concluded** once `frameCount` is set.
@@ -70,6 +73,17 @@ Adapted from [`OnlyCatAI/onlycat-shared-models`](https://github.com/OnlyCatAI/on
 | `rfidCode` | string \| null | |
 | `startFrameIndex` | number | |
 | `endFrameIndex` | number | |
+
+### `EventSummary`
+
+The canonical interpretation of an event, computed server-side. Subscribe with `getEventSummary { subscribe: true }` and listen for `eventSummaryUpdate` push events. The summary is provisional during an event and may change (e.g. a `TRANSIT` may be demoted to `PEEK` if the cat retreats); it's final when `processedFrameCount === Event.frameCount`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `deviceId` | string | |
+| `eventId` | number | |
+| `processedFrameCount` | number | When this matches the event's `frameCount`, the summary is final |
+| `subevents` | `SubEvent[]` | Per-cat per-action timeline within the event |
 
 ## Media URLs
 

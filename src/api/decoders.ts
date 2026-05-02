@@ -3,6 +3,8 @@ import {
   EventTriggerSource,
   type DeviceUpdatePayload,
   type EventPushPayload,
+  type EventSummary,
+  type EventSummaryUpdatePayload,
   type OnlyCatEvent,
   type SubEvent,
   type SubEventAction,
@@ -118,6 +120,39 @@ export function decodeDeviceUpdate(x: unknown): DeviceUpdatePayload | undefined 
   return {
     deviceId,
     type: asString(x.type),
+    body,
+  };
+}
+
+export function decodeEventSummary(x: unknown): EventSummary | undefined {
+  if (!isObject(x)) return undefined;
+  const deviceId = asString(x.deviceId);
+  const eventId = asNumber(x.eventId);
+  if (!deviceId || eventId === undefined) return undefined;
+  const subevents = Array.isArray(x.subevents)
+    ? x.subevents.map(decodeSubEvent).filter((s): s is SubEvent => s !== undefined)
+    : [];
+  return {
+    deviceId,
+    eventId,
+    processedFrameCount: asNumber(x.processedFrameCount) ?? 0,
+    subevents,
+  };
+}
+
+export function decodeEventSummaryUpdate(
+  x: unknown,
+): EventSummaryUpdatePayload | undefined {
+  if (!isObject(x)) return undefined;
+  const deviceId = asString(x.deviceId);
+  const eventId = asNumber(x.eventId);
+  if (!deviceId || eventId === undefined) return undefined;
+  const body = decodeEventSummary(x.body);
+  return {
+    deviceId,
+    eventId,
+    type: asString(x.type),
+    timestamp: asString(x.timestamp),
     body,
   };
 }

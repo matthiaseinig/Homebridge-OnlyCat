@@ -5,9 +5,11 @@ Homebridge plugin for the [OnlyCat](https://www.onlycat.com) smart cat flap.
 The plugin exposes each OnlyCat flap as a native HomeKit accessory:
 
 - **Camera** — snapshot, live view, and HomeKit Secure Video recordings of every flap event
-- **Per-cat presence sensors** — one HomeKit occupancy sensor per RFID profile, so automations can react to a specific cat coming home
+- **Per-cat presence sensors** — one HomeKit occupancy sensor per RFID profile, accurately driven by OnlyCat's `getEventSummary` so a peeking cat does not flip presence
 - **Contraband alarm** — a separate occupancy sensor that fires when the flap detects unwanted prey
 - **Human-activity sensor** — useful for "someone at the cat flap" notifications
+- **Breach sensor** — security alarm that fires when the lock was engaged but a cat got through anyway
+- **Blocked sensor** — fires when the door policy denies a cat (handy for "unknown cat tried to enter" notifications)
 - **Online sensor** — fires automations when the flap loses or regains its connection to the OnlyCat gateway
 - **Door-policy lock** — control the active transit policy from the Home app or via Siri
 - **Remote unlock** and **reboot** as momentary switches

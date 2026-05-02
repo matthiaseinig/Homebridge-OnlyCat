@@ -1,7 +1,11 @@
 import type { Logging } from "homebridge";
 import { type Socket, io } from "socket.io-client";
 import { redactToken } from "../util/redact.js";
-import { decodeDeviceUpdate, decodeEventPush } from "./decoders.js";
+import {
+  decodeDeviceUpdate,
+  decodeEventPush,
+  decodeEventSummaryUpdate,
+} from "./decoders.js";
 import type { InboundEventMap, OutboundRpcMap } from "./types.js";
 
 export const DEFAULT_GATEWAY_URL = "https://gateway.onlycat.com";
@@ -90,6 +94,15 @@ export class OnlyCatClient {
         return;
       }
       this.dispatch("eventUpdate", decoded);
+    });
+
+    this.socket.on("eventSummaryUpdate", (raw: unknown) => {
+      const decoded = decodeEventSummaryUpdate(raw);
+      if (!decoded) {
+        this.log.warn("Discarded malformed eventSummaryUpdate payload");
+        return;
+      }
+      this.dispatch("eventSummaryUpdate", decoded);
     });
 
     this.socket.on("userUpdate", (raw: unknown) => {

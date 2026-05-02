@@ -13,7 +13,9 @@ import {
   type DeviceRecord,
   type DeviceTransitPolicy,
   type EventPushPayload,
+  type EventSummaryUpdatePayload,
   type OnlyCatEvent,
+  type SubEvent,
 } from "../api/types.js";
 import { EventCache } from "../streaming/eventCache.js";
 import { OnlyCatRecordingDelegate } from "../streaming/recordingDelegate.js";
@@ -24,6 +26,8 @@ export const FLAP_MANUFACTURER = "OnlyCat";
 const SUBTYPE_ACTIVITY = "activity";
 const SUBTYPE_CONTRABAND = "contraband";
 const SUBTYPE_HUMAN = "human";
+const SUBTYPE_BREACH = "breach";
+const SUBTYPE_BLOCKED = "blocked";
 const SUBTYPE_ONLINE = "online";
 const SUBTYPE_LOCK = "lock";
 const SUBTYPE_UNLOCK_BUTTON = "remote-unlock";
@@ -69,10 +73,13 @@ export class FlapAccessory {
   private activityService!: Service;
   private contrabandService!: Service;
   private humanService!: Service;
+  private breachService!: Service;
+  private blockedService!: Service;
   private onlineService!: Service;
   private lockService!: Service;
   private streamingDelegate?: OnlyCatStreamingDelegate;
   private recordingDelegate?: OnlyCatRecordingDelegate;
+  private summarySubscribedFor: number | null = null;
 
   constructor(deps: FlapAccessoryDeps) {
     this.api = deps.api;
@@ -98,6 +105,16 @@ export class FlapAccessory {
       Service.OccupancySensor,
       "Human at flap",
       SUBTYPE_HUMAN,
+    );
+    this.breachService = this.ensureService(
+      Service.OccupancySensor,
+      "Breach",
+      SUBTYPE_BREACH,
+    );
+    this.blockedService = this.ensureService(
+      Service.OccupancySensor,
+      "Blocked",
+      SUBTYPE_BLOCKED,
     );
     this.onlineService = this.ensureService(
       Service.OccupancySensor,
@@ -131,6 +148,7 @@ export class FlapAccessory {
 
     this.client.on("deviceEventUpdate", this.onEventUpdate);
     this.client.on("eventUpdate", this.onEventUpdate);
+    this.client.on("eventSummaryUpdate", this.onSummaryUpdate);
   }
 
   private attachCamera(ffmpegPath?: string): void {
@@ -401,6 +419,8 @@ export class FlapAccessory {
         classification: payload.eventClassification,
       };
       this.setActivity(true);
+      this.resetSummaryFlags();
+      void this.subscribeToSummary(payload.eventId);
     }
 
     if (payload.eventClassification !== undefined) {
@@ -412,9 +432,58 @@ export class FlapAccessory {
     if (payload.frameCount !== undefined && payload.frameCount !== null) {
       this.setActivity(false);
       this.applyClassification(undefined);
+      this.resetSummaryFlags();
       this.inProgress = null;
+      this.summarySubscribedFor = null;
     }
   };
+
+  private async subscribeToSummary(eventId: number): Promise<void> {
+    if (this.summarySubscribedFor === eventId) return;
+    this.summarySubscribedFor = eventId;
+    try {
+      const summary = await this.client.call("getEventSummary", {
+        deviceId: this.device.deviceId,
+        eventId,
+        subscribe: true,
+      });
+      if (summary) {
+        this.applySummary(summary.subevents);
+      }
+    } catch (err) {
+      this.log.debug(
+        "getEventSummary failed for %s/%d: %s",
+        this.device.deviceId,
+        eventId,
+        (err as Error).message,
+      );
+    }
+  }
+
+  private onSummaryUpdate = (payload: EventSummaryUpdatePayload): void => {
+    if (payload.deviceId !== this.deviceId) return;
+    if (this.inProgress && payload.eventId !== this.inProgress.eventId) return;
+    if (!payload.body) return;
+    this.applySummary(payload.body.subevents);
+  };
+
+  private applySummary(subevents: SubEvent[]): void {
+    const breach = subevents.some((s) => s.action === "BREACH");
+    const blocked = subevents.some((s) => s.action === "DENY");
+    this.setOccupancy(this.breachService, breach);
+    this.setOccupancy(this.blockedService, blocked);
+    if (breach) {
+      this.log.warn(
+        "Breach detected on flap %s — flap was supposedly locked but a cat transited.",
+        this.device.deviceId,
+      );
+    }
+  }
+
+  private resetSummaryFlags(): void {
+    this.setOccupancy(this.breachService, false);
+    this.setOccupancy(this.blockedService, false);
+  }
 
   private applyClassification(c: EventClassification | undefined): void {
     this.setOccupancy(this.contrabandService, c === EventClassification.Contraband);
@@ -439,6 +508,7 @@ export class FlapAccessory {
   dispose(): void {
     this.client.off("deviceEventUpdate", this.onEventUpdate);
     this.client.off("eventUpdate", this.onEventUpdate);
+    this.client.off("eventSummaryUpdate", this.onSummaryUpdate);
     this.log.debug("Disposed FlapAccessory for %s", this.deviceId);
   }
 }

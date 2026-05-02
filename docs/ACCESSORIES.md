@@ -13,6 +13,8 @@ One HomeKit accessory per OnlyCat device, modelled as a camera with linked servi
 | Any event in progress | `MotionSensor` "Activity" | True on `deviceEventUpdate`, false when `frameCount` arrives |
 | Contraband detected | `OccupancySensor` "Contraband" | Latched on `eventClassification=CONTRABAND` |
 | Human activity | `OccupancySensor` "Human at flap" | `HUMAN_ACTIVITY` |
+| Breach detected | `OccupancySensor` "Breach" | Set when `getEventSummary` reports any subevent with `action=BREACH` (lock engaged but cat transited anyway). Cleared when the event ends. |
+| Cat blocked | `OccupancySensor` "Blocked" | Set when `getEventSummary` reports any subevent with `action=DENY` (door policy refused a cat). Cleared when the event ends. |
 | Door lock state | `LockMechanism` | Reflects active policy's `idleLock`; setter calls `activateDeviceTransitPolicy` |
 | Remote unlock pulse | `Switch` "Remote unlock" | Momentary (auto-revert) |
 | Reboot | `Switch` "Reboot" | Momentary (auto-revert) |
@@ -26,7 +28,7 @@ One HomeKit accessory per RFID profile.
 | Surface | Service | Behavior |
 |---|---|---|
 | Identity | `AccessoryInformation` | Name = pet label, Serial = `rfidCode` |
-| Presence | `OccupancySensor` "Home" | True after last sighting was inward, false after outward |
+| Presence | `OccupancySensor` "Home" | Driven by OnlyCat's `getEventSummary`: only `action=TRANSIT` subevents flip presence. Peeks, denies, and breaches do not. Falls back to raw subevent direction when no summary is available yet. |
 
 ## Why these specific services
 

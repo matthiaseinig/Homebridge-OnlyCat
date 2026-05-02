@@ -96,6 +96,21 @@ export interface DeviceUpdatePayload {
   body?: Partial<DeviceRecord>;
 }
 
+export interface EventSummary {
+  deviceId: string;
+  eventId: number;
+  processedFrameCount: number;
+  subevents: SubEvent[];
+}
+
+export interface EventSummaryUpdatePayload {
+  deviceId: string;
+  eventId: number;
+  type?: string;
+  timestamp?: string;
+  body?: EventSummary;
+}
+
 export interface EventPushPayload extends Partial<OnlyCatEvent> {
   deviceId: string;
   eventId: number;
@@ -137,6 +152,10 @@ export interface OutboundRpcMap {
     args: { deviceId: string; command: "reboot" | "unlock" };
     reply: unknown;
   };
+  getEventSummary: {
+    args: { deviceId: string; eventId: number; subscribe?: boolean };
+    reply: EventSummary | null;
+  };
 }
 
 export interface InboundEventMap {
@@ -146,4 +165,5 @@ export interface InboundEventMap {
   deviceUpdate: DeviceUpdatePayload;
   deviceEventUpdate: EventPushPayload;
   eventUpdate: EventPushPayload;
+  eventSummaryUpdate: EventSummaryUpdatePayload;
 }
