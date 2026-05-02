@@ -1,0 +1,18 @@
+{
+  "bridge": {
+    "name": "OnlyCat Dev Bridge",
+    "username": "CC:22:3D:E3:CE:30",
+    "port": 51826,
+    "pin": "031-45-154",
+    "advertiser": "bonjour-hap"
+  },
+  "accessories": [],
+  "platforms": [
+    {
+      "platform": "OnlyCat",
+      "name": "OnlyCat",
+      "token": "PASTE_YOUR_ONLYCAT_TOKEN_HERE",
+      "debug": true
+    }
+  ]
+}

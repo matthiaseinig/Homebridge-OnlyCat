@@ -1,0 +1,370 @@
+import type {
+  API,
+  Characteristic,
+  DynamicPlatformPlugin,
+  Logging,
+  PlatformAccessory,
+  PlatformConfig,
+  Service,
+} from "homebridge";
+import { CatPresenceAccessory } from "./accessories/catPresenceAccessory.js";
+import { FlapAccessory } from "./accessories/flapAccessory.js";
+import { OnlyCatClient } from "./api/client.js";
+import type { DeviceRecord, RfidProfile } from "./api/types.js";
+import { PLATFORM_NAME, PLUGIN_NAME } from "./settings.js";
+import { redactToken } from "./util/redact.js";
+
+export interface OnlyCatPlatformConfig extends PlatformConfig {
+  token?: string;
+  debug?: boolean;
+  gatewayUrl?: string;
+  /**
+   * On startup, replay events from the last N days through HKSV. 0 disables.
+   * HomeKit will timestamp replayed clips at the moment of playback, not the
+   * original event time — Apple's HKSV API does not expose a backdate primitive.
+   */
+  replayHistoryOnStartup?: number;
+}
+
+const REPLAY_DAY_MS = 24 * 60 * 60 * 1000;
+const REPLAY_GAP_MS = 5_000;
+const REPLAY_BETWEEN_EVENTS_MS = 10_000;
+
+export interface OnlyCatPlatformDeps {
+  client?: OnlyCatClient;
+}
+
+interface CatKey {
+  deviceId: string;
+  rfidCode: string;
+}
+
+function catKeyOf(c: CatKey): string {
+  return `${c.deviceId}:${c.rfidCode}`;
+}
+
+export class OnlyCatPlatform implements DynamicPlatformPlugin {
+  public readonly Service: typeof Service;
+  public readonly Characteristic: typeof Characteristic;
+  public readonly accessories: PlatformAccessory[] = [];
+
+  private readonly client: OnlyCatClient | null = null;
+  private readonly flaps = new Map<string, FlapAccessory>();
+  private readonly cats = new Map<string, CatPresenceAccessory>();
+
+  constructor(
+    public readonly log: Logging,
+    public readonly config: OnlyCatPlatformConfig,
+    public readonly api: API,
+    deps: OnlyCatPlatformDeps = {},
+  ) {
+    this.Service = api.hap.Service;
+    this.Characteristic = api.hap.Characteristic;
+
+    if (!config.token) {
+      log.error(
+        "No 'token' configured. Add your OnlyCat token to the Homebridge config — the plugin will stay idle until you do.",
+      );
+      return;
+    }
+
+    this.client =
+      deps.client ??
+      new OnlyCatClient({
+        token: config.token,
+        url: config.gatewayUrl,
+        log,
+        debug: !!config.debug,
+      });
+
+    this.client.on("deviceUpdate", (payload) => {
+      const flap = this.flaps.get(payload.deviceId);
+      if (flap && payload.body) {
+        flap.applyDeviceUpdate({ ...payload.body, deviceId: payload.deviceId });
+      }
+    });
+
+    api.on("didFinishLaunching", () => {
+      void this.start();
+    });
+
+    api.on("shutdown", () => {
+      this.stop();
+    });
+  }
+
+  configureAccessory(accessory: PlatformAccessory): void {
+    this.log.debug("Restoring cached accessory: %s", accessory.displayName);
+    this.accessories.push(accessory);
+  }
+
+  private async start(): Promise<void> {
+    if (!this.client) return;
+    this.log.info(
+      "Starting OnlyCat platform (token=%s)",
+      redactToken(this.config.token),
+    );
+    try {
+      await this.client.connect();
+    } catch (err) {
+      this.log.error(
+        "Failed to connect to OnlyCat gateway: %s. The plugin will keep retrying in the background.",
+        (err as Error).message,
+      );
+      return;
+    }
+
+    try {
+      await this.discoverDevices();
+    } catch (err) {
+      this.log.error("Device discovery failed: %s", (err as Error).message);
+    }
+
+    this.log.info(
+      "OnlyCat platform initialised with %d flap(s) and %d cat(s).",
+      this.flaps.size,
+      this.cats.size,
+    );
+
+    const replayDays = this.config.replayHistoryOnStartup ?? 0;
+    if (replayDays > 0) {
+      void this.replayHistory(replayDays);
+    }
+  }
+
+  async replayHistory(
+    days: number,
+    options: { gapMs?: number; betweenEventsMs?: number } = {},
+  ): Promise<void> {
+    if (!this.client) return;
+    const gapMs = options.gapMs ?? REPLAY_GAP_MS;
+    const betweenEventsMs = options.betweenEventsMs ?? REPLAY_BETWEEN_EVENTS_MS;
+    const cutoff = Date.now() - days * REPLAY_DAY_MS;
+    this.log.info(
+      "Replaying flap events from the last %d day(s). HomeKit will timestamp replayed recordings at the time of replay, not the original event time.",
+      days,
+    );
+    for (const [deviceId, flap] of this.flaps) {
+      let summaries;
+      try {
+        summaries = await this.client.call("getDeviceEvents", { deviceId });
+      } catch (err) {
+        this.log.warn(
+          "Replay aborted for %s: %s",
+          deviceId,
+          (err as Error).message,
+        );
+        continue;
+      }
+      const recent = summaries
+        .filter((e) => e.timestamp && new Date(e.timestamp).getTime() >= cutoff)
+        .sort(
+          (a, b) =>
+            new Date(a.timestamp ?? 0).getTime() -
+            new Date(b.timestamp ?? 0).getTime(),
+        );
+      this.log.info("Replaying %d event(s) on flap %s", recent.length, deviceId);
+      for (const summary of recent) {
+        try {
+          const full = await this.client.call("getEvent", {
+            deviceId,
+            eventId: summary.eventId,
+          });
+          await flap.replayHistoricalEvent(full, gapMs);
+        } catch (err) {
+          this.log.warn(
+            "Replay of event %d (%s) failed: %s",
+            summary.eventId,
+            deviceId,
+            (err as Error).message,
+          );
+        }
+        if (betweenEventsMs > 0) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, betweenEventsMs).unref();
+          });
+        }
+      }
+    }
+    this.log.info("Replay complete.");
+  }
+
+  async discoverDevices(): Promise<void> {
+    if (!this.client) return;
+    const summaries = await this.client.call("getDevices", { subscribe: true });
+    const seenDevices = new Set<string>();
+    const seenCats = new Set<string>();
+
+    for (const summary of summaries) {
+      seenDevices.add(summary.deviceId);
+      const record = await this.client.call("getDevice", {
+        deviceId: summary.deviceId,
+        subscribe: true,
+      });
+      const flap = this.adoptFlap(record);
+      await this.loadPoliciesFor(record.deviceId, flap);
+      await this.loadPetsFor(record.deviceId, seenCats);
+    }
+
+    this.pruneStaleAccessories(seenDevices, seenCats);
+  }
+
+  private async loadPoliciesFor(
+    deviceId: string,
+    flap: FlapAccessory,
+  ): Promise<void> {
+    if (!this.client) return;
+    try {
+      const summaries = await this.client.call("getDeviceTransitPolicies", { deviceId });
+      for (const summary of summaries) {
+        const policy = await this.client.call("getDeviceTransitPolicy", {
+          deviceTransitPolicyId: summary.deviceTransitPolicyId,
+        });
+        flap.applyPolicy(policy);
+      }
+    } catch (err) {
+      this.log.warn(
+        "Failed to load transit policies for %s: %s",
+        deviceId,
+        (err as Error).message,
+      );
+    }
+  }
+
+  private async loadPetsFor(deviceId: string, seenCats: Set<string>): Promise<void> {
+    if (!this.client) return;
+    try {
+      const lastSeen = await this.client.call("getLastSeenRfidCodesByDevice", {
+        deviceId,
+      });
+      for (const entry of lastSeen) {
+        const profile = await this.client.call("getRfidProfile", {
+          deviceId,
+          rfidCode: entry.rfidCode,
+        });
+        const merged: RfidProfile = { ...profile, deviceId, rfidCode: entry.rfidCode };
+        seenCats.add(catKeyOf({ deviceId, rfidCode: entry.rfidCode }));
+        this.adoptCat(merged);
+      }
+    } catch (err) {
+      this.log.warn(
+        "Failed to load pet profiles for %s: %s",
+        deviceId,
+        (err as Error).message,
+      );
+    }
+  }
+
+  private adoptFlap(record: DeviceRecord): FlapAccessory {
+    const uuid = this.api.hap.uuid.generate(`onlycat-flap:${record.deviceId}`);
+    const cached = this.accessories.find((a) => a.UUID === uuid);
+
+    let accessory: PlatformAccessory;
+    let isNew = false;
+
+    if (cached) {
+      accessory = cached;
+      accessory.displayName = record.description ?? accessory.displayName;
+    } else {
+      const Ctor = this.api.platformAccessory;
+      accessory = new Ctor(record.description ?? "OnlyCat Flap", uuid);
+      isNew = true;
+    }
+
+    accessory.context.device = record;
+
+    const flap = new FlapAccessory({
+      api: this.api,
+      log: this.log,
+      client: this.client!,
+      device: record,
+      accessory,
+    });
+    this.flaps.set(record.deviceId, flap);
+
+    if (isNew) {
+      this.log.info("Adopted new flap: %s (%s)", accessory.displayName, record.deviceId);
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      this.accessories.push(accessory);
+    }
+    return flap;
+  }
+
+  private adoptCat(profile: RfidProfile): CatPresenceAccessory {
+    const uuid = this.api.hap.uuid.generate(
+      `onlycat-cat:${profile.deviceId}:${profile.rfidCode}`,
+    );
+    const cached = this.accessories.find((a) => a.UUID === uuid);
+
+    let accessory: PlatformAccessory;
+    let isNew = false;
+    const displayName = profile.label ?? profile.rfidCode;
+
+    if (cached) {
+      accessory = cached;
+      accessory.displayName = displayName;
+    } else {
+      const Ctor = this.api.platformAccessory;
+      accessory = new Ctor(displayName, uuid);
+      isNew = true;
+    }
+
+    accessory.context.cat = profile;
+
+    const existing = this.cats.get(catKeyOf(profile));
+    if (existing) {
+      existing.applyProfileUpdate(profile);
+      return existing;
+    }
+
+    const cat = new CatPresenceAccessory({
+      api: this.api,
+      log: this.log,
+      client: this.client!,
+      accessory,
+      profile,
+    });
+    this.cats.set(catKeyOf(profile), cat);
+
+    if (isNew) {
+      this.log.info(
+        "Adopted new cat: %s (rfid=%s, flap=%s)",
+        displayName,
+        profile.rfidCode,
+        profile.deviceId,
+      );
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      this.accessories.push(accessory);
+    }
+    return cat;
+  }
+
+  private pruneStaleAccessories(
+    seenDeviceIds: Set<string>,
+    seenCatKeys: Set<string>,
+  ): void {
+    const stale: PlatformAccessory[] = [];
+    for (const a of this.accessories) {
+      const device = a.context.device as DeviceRecord | undefined;
+      const cat = a.context.cat as RfidProfile | undefined;
+      if (device && !seenDeviceIds.has(device.deviceId)) stale.push(a);
+      if (cat && !seenCatKeys.has(catKeyOf(cat))) stale.push(a);
+    }
+    if (stale.length === 0) return;
+    this.log.info("Removing %d stale accessory/accessories.", stale.length);
+    this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, stale);
+    for (const a of stale) {
+      const idx = this.accessories.indexOf(a);
+      if (idx >= 0) this.accessories.splice(idx, 1);
+    }
+  }
+
+  private stop(): void {
+    this.log.info("OnlyCat platform shutting down.");
+    for (const flap of this.flaps.values()) flap.dispose();
+    for (const cat of this.cats.values()) cat.dispose();
+    this.flaps.clear();
+    this.cats.clear();
+    this.client?.disconnect();
+  }
+}

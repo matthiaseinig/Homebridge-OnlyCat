@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+coverage/
+
+# Local Homebridge dev sandbox — never commit tokens or runtime state.
+dev/*
+!dev/README.md
+!dev/config.example.json

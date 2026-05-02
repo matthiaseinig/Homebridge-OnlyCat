@@ -1,0 +1,17 @@
+src/
+tests/
+docs/
+examples/
+dev/
+coverage/
+eslint.config.mjs
+.prettierrc.json
+tsconfig.json
+vitest.config.ts
+.github/
+.vscode/
+.idea/
+*.log
+.env*
+.DS_Store
+CONTRIBUTING.md

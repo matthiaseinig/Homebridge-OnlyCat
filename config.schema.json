@@ -1,0 +1,39 @@
+{
+  "pluginAlias": "OnlyCat",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Homebridge plugin for the OnlyCat smart cat flap. Generate a token in the OnlyCat mobile app and paste it below.",
+  "footerDisplay": "Source & docs: https://github.com/matthiaseinig/OnlyCatHomebridge",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "required": true,
+        "default": "OnlyCat"
+      },
+      "token": {
+        "title": "OnlyCat API Token",
+        "type": "string",
+        "required": true,
+        "format": "password",
+        "description": "API token from the OnlyCat mobile app (Settings → Developer)."
+      },
+      "debug": {
+        "title": "Verbose logging",
+        "type": "boolean",
+        "default": false,
+        "description": "Log raw Socket.IO traffic. Leave off for normal use."
+      },
+      "replayHistoryOnStartup": {
+        "title": "Replay event history on startup (days)",
+        "type": "integer",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 30,
+        "description": "When > 0, fetch events from the last N days on plugin startup and push them through HomeKit Secure Video. The clip content is correct, but HomeKit will timestamp these recordings at the moment of replay, not the original event time — that's an Apple HKSV API limitation we can't bypass. Leave at 0 for fresh-from-install behaviour."
+      }
+    }
+  }
+}

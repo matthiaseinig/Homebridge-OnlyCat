@@ -1,0 +1,18 @@
+{
+  "_comment": "Minimal Homebridge config.json showing where to add the OnlyCat platform. The Homebridge UI will create / update this block automatically when you configure the plugin through the Plugins tab — this file is for users who edit config.json by hand.",
+  "bridge": {
+    "name": "Homebridge",
+    "username": "CC:22:3D:E3:CE:31",
+    "port": 51827,
+    "pin": "031-45-154"
+  },
+  "accessories": [],
+  "platforms": [
+    {
+      "platform": "OnlyCat",
+      "name": "OnlyCat",
+      "token": "PASTE_YOUR_ONLYCAT_TOKEN_HERE",
+      "debug": false
+    }
+  ]
+}
