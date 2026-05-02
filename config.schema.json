@@ -26,6 +26,17 @@
         "default": false,
         "description": "Log raw Socket.IO traffic. Leave off for normal use."
       },
+      "ffmpegPath": {
+        "title": "ffmpeg path",
+        "type": "string",
+        "description": "Optional override for the ffmpeg binary used by the camera and HKSV pipelines. Leave blank to resolve via PATH."
+      },
+      "disableCamera": {
+        "title": "Disable camera service",
+        "type": "boolean",
+        "default": false,
+        "description": "Suppress the camera and HomeKit Secure Video on each flap. Sensors, lock, and switches still appear, but as separate tiles in the Home app. Leave off unless you specifically don't want camera support."
+      },
       "replayHistoryOnStartup": {
         "title": "Replay event history on startup (days)",
         "type": "integer",

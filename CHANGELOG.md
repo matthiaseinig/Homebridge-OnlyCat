@@ -2,6 +2,20 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1]
+
+### Fixed
+
+- **Camera service is now attached by default.** A leftover guard (`enableCamera ?? false`) was preventing the `CameraController` from being wired up on the flap accessory. The camera tile now appears in the Home app and HKSV is reachable.
+- Set `accessory.category = CAMERA` so iOS Home groups the flap's sensors and switches under one camera tile, rather than scattering them as individual tiles in the room view.
+- Set `ConfiguredName` (in addition to `Name`) on every service so the Home app and Siri pick up clear, predictable labels.
+- `StatusFault` is no longer set on `LockMechanism` (HAP doesn't list it as required/optional there). It now reflects the offline state on `MotionSensor` "Activity" and `OccupancySensor` "Online" only — eliminating the warning at startup.
+
+### Added
+
+- `disableCamera` config option for users who specifically don't want the camera service.
+- `ffmpegPath` config option to override the resolved ffmpeg binary.
+
 ## [0.2.0]
 
 ### Added

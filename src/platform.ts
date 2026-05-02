@@ -18,6 +18,10 @@ export interface OnlyCatPlatformConfig extends PlatformConfig {
   token?: string;
   debug?: boolean;
   gatewayUrl?: string;
+  /** Override path to the ffmpeg binary. Defaults to "ffmpeg" on PATH. */
+  ffmpegPath?: string;
+  /** Suppress the Camera service. Live view + HKSV will be unavailable. */
+  disableCamera?: boolean;
   /**
    * On startup, replay events from the last N days through HKSV. 0 disables.
    * HomeKit will timestamp replayed clips at the moment of playback, not the
@@ -271,6 +275,15 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
       isNew = true;
     }
 
+    // Mark the accessory as a Camera category so iOS Home groups all the linked
+    // services (motion, occupancy, lock, switches) under one camera tile.
+    const cameraCategory = (this.api.hap as unknown as {
+      Categories?: { CAMERA?: number };
+    }).Categories?.CAMERA;
+    if (cameraCategory !== undefined && !this.config.disableCamera) {
+      (accessory as PlatformAccessory & { category?: number }).category = cameraCategory;
+    }
+
     accessory.context.device = record;
 
     const flap = new FlapAccessory({
@@ -279,6 +292,8 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
       client: this.client!,
       device: record,
       accessory,
+      ffmpegPath: this.config.ffmpegPath,
+      disableCamera: this.config.disableCamera,
     });
     this.flaps.set(record.deviceId, flap);
 

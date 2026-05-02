@@ -11,7 +11,7 @@ import {
 import { createMockSocket } from "../helpers/mockSocket.js";
 
 describe("FlapAccessory camera attachment", () => {
-  it("creates a CameraController with streaming + recording delegates and the motion sensor when enableCamera=true", () => {
+  it("creates a CameraController with streaming + recording delegates and the motion sensor by default", () => {
     const log = createMockLogger();
     const api = createMockApi();
     const socket = createMockSocket();
@@ -24,7 +24,6 @@ describe("FlapAccessory camera attachment", () => {
       client,
       device,
       accessory: asPlatformAccessory(accessory),
-      enableCamera: true,
       ffmpegPath: "/usr/local/bin/ffmpeg",
     });
 
@@ -57,7 +56,22 @@ describe("FlapAccessory camera attachment", () => {
       client,
       device: { deviceId: "d-1" },
       accessory: asPlatformAccessory(new MockPlatformAccessory("d-1", "uuid:d-1")),
-      enableCamera: true,
+    });
+    expect(api.cameraInstances).toHaveLength(0);
+  });
+
+  it("skips camera attachment when disableCamera=true", () => {
+    const log = createMockLogger();
+    const api = createMockApi();
+    const socket = createMockSocket();
+    const client = new OnlyCatClient({ token: "tok", log, socket });
+    new FlapAccessory({
+      api,
+      log,
+      client,
+      device: { deviceId: "d-2" },
+      accessory: asPlatformAccessory(new MockPlatformAccessory("d-2", "uuid:d-2")),
+      disableCamera: true,
     });
     expect(api.cameraInstances).toHaveLength(0);
   });

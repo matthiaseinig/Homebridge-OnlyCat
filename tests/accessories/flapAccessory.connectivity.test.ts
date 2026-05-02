@@ -49,10 +49,10 @@ describe("FlapAccessory connectivity", () => {
     const online = accessory.getService("OccupancySensor", "online")!;
     expect(online.getCharacteristic("OccupancyDetected").value).toBe(0);
 
-    const lock = accessory.getService("LockMechanism", "lock")!;
-    expect(lock.getCharacteristic("StatusFault").value).toBe(1);
     const motion = accessory.getService("MotionSensor", "activity")!;
     expect(motion.getCharacteristic("StatusFault").value).toBe(1);
+    const onlineFault = accessory.getService("OccupancySensor", "online")!;
+    expect(onlineFault.getCharacteristic("StatusFault").value).toBe(1);
   });
 
   it("flips Online when applyDeviceUpdate carries new connectivity", () => {

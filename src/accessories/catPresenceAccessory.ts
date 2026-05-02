@@ -106,8 +106,13 @@ export class CatPresenceAccessory {
     const existing = services.find(
       (s) => s.UUID === ctor.UUID && s.subtype === subtype,
     );
-    if (existing) return existing;
-    return this.accessory.addService(ctor, name, subtype);
+    const service = existing ?? this.accessory.addService(ctor, name, subtype);
+    const Characteristic = this.api.hap.Characteristic;
+    service.setCharacteristic(Characteristic.Name, name);
+    if (Characteristic.ConfiguredName) {
+      service.setCharacteristic(Characteristic.ConfiguredName, name);
+    }
+    return service;
   }
 
   private onEventUpdate = (payload: EventPushPayload): void => {

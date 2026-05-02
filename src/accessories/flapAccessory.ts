@@ -49,8 +49,8 @@ export interface FlapAccessoryDeps {
   device: DeviceRecord;
   accessory: PlatformAccessory;
   ffmpegPath?: string;
-  /** Skip CameraController wiring (used in unit tests where HAP camera APIs aren't available). */
-  enableCamera?: boolean;
+  /** When true, skip CameraController wiring. Default false (camera on). */
+  disableCamera?: boolean;
 }
 
 interface InProgressEvent {
@@ -142,7 +142,7 @@ export class FlapAccessory {
       "reboot",
     );
 
-    if (deps.enableCamera ?? false) {
+    if (deps.disableCamera !== true) {
       this.attachCamera(deps.ffmpegPath);
     }
 
@@ -208,8 +208,10 @@ export class FlapAccessory {
       online ? 1 : 0,
     );
     const fault = online ? STATUS_FAULT_NO_FAULT : STATUS_FAULT_GENERAL_FAULT;
-    this.lockService.updateCharacteristic(Characteristic.StatusFault, fault);
+    // StatusFault is optional on MotionSensor and OccupancySensor but not on
+    // LockMechanism, so we only set it where HAP accepts it.
     this.activityService.updateCharacteristic(Characteristic.StatusFault, fault);
+    this.onlineService.updateCharacteristic(Characteristic.StatusFault, fault);
     if (connectivity && connectivity.connected === false) {
       this.log.info(
         "Flap %s went offline%s",
@@ -391,11 +393,13 @@ export class FlapAccessory {
     subtype: string,
   ): Service {
     const existing = this.findService(ctor, subtype);
-    if (existing) {
-      existing.setCharacteristic(this.api.hap.Characteristic.Name, name);
-      return existing;
+    const service = existing ?? this.accessory.addService(ctor, name, subtype);
+    const Characteristic = this.api.hap.Characteristic;
+    service.setCharacteristic(Characteristic.Name, name);
+    if (Characteristic.ConfiguredName) {
+      service.setCharacteristic(Characteristic.ConfiguredName, name);
     }
-    return this.accessory.addService(ctor, name, subtype);
+    return service;
   }
 
   private findService(
