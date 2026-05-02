@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13]
+
+### Fixed
+
+- **Live view actually shows video.** OnlyCat's MP4 endpoint doesn't honour HTTP Range requests, so ffmpeg's `-stream_loop -1` couldn't seek back to byte 0 after the first iteration — every loop attempt died with `Stream ends prematurely at 2654, should be 1536248` and iOS gave up. We now download the event MP4 to a temp file once on each live-stream request, point ffmpeg at the local file (which supports seek-back natively), and clean the file up when the session ends.
+
 ## [0.2.12]
 
 ### Fixed

@@ -252,7 +252,28 @@ describe("OnlyCatStreamingDelegate", () => {
     );
   });
 
+  function mockFetchOk(): () => void {
+    const original = globalThis.fetch;
+    const fakeBuffer = Buffer.alloc(64, 0xab);
+    globalThis.fetch = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => fakeBuffer,
+      }) as unknown as Response) as unknown as typeof fetch;
+    return () => {
+      globalThis.fetch = original;
+    };
+  }
+
+  async function flushAsync(): Promise<void> {
+    // The download path does fetch + fs.writeFile, both genuinely async I/O.
+    // setImmediate won't flush enough — give the event loop ~50 ms.
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
   it("start with cached event spawns ffmpeg with sane args", async () => {
+    const restore = mockFetchOk();
     const cache = new EventCache();
     cache.apply({
       deviceId: "d",
@@ -270,37 +291,40 @@ describe("OnlyCatStreamingDelegate", () => {
       portAllocator: async () => 7000,
       spawner: spawner as never,
     });
-    await delegate.prepareStream(prepareRequest() as never, vi.fn());
-    delegate.handleStreamRequest(startRequest() as never, vi.fn());
-    expect(spawner).toHaveBeenCalled();
-    const [, args] = spawner.mock.calls[0]!;
-    expect(args).toContain("-i");
-    expect(args).toContain("https://gateway.onlycat.com/sharing/video/d/11?t=tok-X");
-    expect(args).toContain("-an");
-    expect(args).toContain("-re");
-    // -stream_loop -1 makes the finite event clip behave as a continuous feed.
-    const loopIdx = args.indexOf("-stream_loop");
-    expect(loopIdx).toBeGreaterThan(-1);
-    expect(args[loopIdx + 1]).toBe("-1");
-    // -live_start_index was removed in ffmpeg 8.x and was never needed for
-    // OnlyCat's VOD HLS playlists — make sure it is NOT in the args.
-    expect(args).not.toContain("-live_start_index");
-    expect(
-      args.some(
-        (a: string) =>
-          a.startsWith("srtp://192.168.1.20") && a.includes("rtcpport="),
-      ),
-    ).toBe(true);
-    // -srtp_out_params must be a SINGLE base64(key||salt), not two
-    // base64-strings concatenated. Verify it round-trips to the right length
-    // (16 + 14 = 30 bytes → 40 base64 chars).
-    const paramsIdx = args.indexOf("-srtp_out_params");
-    expect(paramsIdx).toBeGreaterThan(-1);
-    const decoded = Buffer.from(args[paramsIdx + 1]!, "base64");
-    expect(decoded.length).toBe(30);
+    try {
+      await delegate.prepareStream(prepareRequest() as never, vi.fn());
+      delegate.handleStreamRequest(startRequest() as never, vi.fn());
+      await flushAsync();
+
+      expect(spawner).toHaveBeenCalled();
+      const [, args] = spawner.mock.calls[0]!;
+      expect(args).toContain("-i");
+      expect(
+        args.some((a: string) => a.endsWith("onlycat-d-11.mp4")),
+      ).toBe(true);
+      expect(args).toContain("-an");
+      expect(args).toContain("-re");
+      const loopIdx = args.indexOf("-stream_loop");
+      expect(loopIdx).toBeGreaterThan(-1);
+      expect(args[loopIdx + 1]).toBe("-1");
+      expect(args).not.toContain("-live_start_index");
+      expect(
+        args.some(
+          (a: string) =>
+            a.startsWith("srtp://192.168.1.20") && a.includes("rtcpport="),
+        ),
+      ).toBe(true);
+      const paramsIdx = args.indexOf("-srtp_out_params");
+      expect(paramsIdx).toBeGreaterThan(-1);
+      const decoded = Buffer.from(args[paramsIdx + 1]!, "base64");
+      expect(decoded.length).toBe(30);
+    } finally {
+      restore();
+    }
   });
 
   it("stop terminates the running ffmpeg session", async () => {
+    const restore = mockFetchOk();
     const cache = new EventCache();
     cache.apply({ deviceId: "d", eventId: 1, accessToken: "tok" });
     const child = fakeChild();
@@ -312,16 +336,55 @@ describe("OnlyCatStreamingDelegate", () => {
       portAllocator: async () => 7000,
       spawner: ((..._a: unknown[]) => child) as never,
     });
-    await delegate.prepareStream(prepareRequest() as never, vi.fn());
-    delegate.handleStreamRequest(startRequest() as never, vi.fn());
+    try {
+      await delegate.prepareStream(prepareRequest() as never, vi.fn());
+      delegate.handleStreamRequest(startRequest() as never, vi.fn());
+      await flushAsync();
 
-    const cb = vi.fn();
-    delegate.handleStreamRequest(
-      { sessionID: "s-1", type: StreamRequestTypes.STOP } as never,
-      cb,
-    );
-    expect(child.kill).toHaveBeenCalledWith("SIGINT");
-    expect(cb).toHaveBeenCalled();
+      const cb = vi.fn();
+      delegate.handleStreamRequest(
+        { sessionID: "s-1", type: StreamRequestTypes.STOP } as never,
+        cb,
+      );
+      expect(child.kill).toHaveBeenCalledWith("SIGINT");
+      expect(cb).toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("warns and stops the session when the clip download fails", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({
+        ok: false,
+        status: 500,
+        arrayBuffer: async () => new ArrayBuffer(0),
+      }) as unknown as Response) as unknown as typeof fetch;
+    const log = createMockLogger();
+    const cache = new EventCache();
+    cache.apply({ deviceId: "d", eventId: 1, accessToken: "tok" });
+    const child = fakeChild();
+    const delegate = new OnlyCatStreamingDelegate({
+      api: makeApi(),
+      log,
+      deviceId: "d",
+      eventCache: cache,
+      portAllocator: async () => 7000,
+      spawner: ((..._a: unknown[]) => child) as never,
+    });
+    try {
+      await delegate.prepareStream(prepareRequest() as never, vi.fn());
+      delegate.handleStreamRequest(startRequest() as never, vi.fn());
+      await new Promise((r) => setTimeout(r, 50));
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("stage event clip"),
+        "d",
+        expect.stringContaining("500"),
+      );
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 
   it("reconfigure is silently acknowledged", () => {

@@ -1,3 +1,6 @@
+import { writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   API,
   CameraController,
@@ -12,7 +15,7 @@ import type {
   StreamRequestCallback,
 } from "homebridge";
 import { StreamRequestTypes } from "homebridge";
-import type { EventCache } from "./eventCache.js";
+import type { CachedEvent, EventCache } from "./eventCache.js";
 import { pickUdpPort } from "./port.js";
 import { FfmpegProcess, type Spawner } from "./ffmpeg.js";
 import {
@@ -47,6 +50,7 @@ interface PrepareInfo {
 interface ActiveSession {
   process?: FfmpegProcess;
   prepare?: PrepareInfo;
+  tempFile?: string;
 }
 
 export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
@@ -172,7 +176,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     callback: StreamRequestCallback,
   ): void {
     if (request.type === StreamRequestTypes.START) {
-      this.startStream(request);
+      void this.startStream(request);
       callback();
       return;
     }
@@ -185,7 +189,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     callback();
   }
 
-  private startStream(request: StartStreamRequest): void {
+  private async startStream(request: StartStreamRequest): Promise<void> {
     const event = this.eventCache.get(this.deviceId);
     if (!event || !event.accessToken) {
       this.log.info(
@@ -203,7 +207,26 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     if (!video) return;
     const prepare = session.prepare;
 
-    const sourceUrl = this.buildSourceUrl(event);
+    // OnlyCat's gateway serves the event clip as a static MP4 over HTTPS but
+    // doesn't honour Range requests, so ffmpeg's `-stream_loop -1` cannot
+    // seek back to byte 0 — every loop iteration fails with
+    // "Stream ends prematurely". We work around it by downloading the clip
+    // to a local temp file once and pointing ffmpeg at the local file, which
+    // supports seek-back natively. The file is deleted when the session ends.
+    let tempFile: string;
+    try {
+      tempFile = await this.downloadEventClip(event);
+      session.tempFile = tempFile;
+    } catch (err) {
+      this.log.warn(
+        "Could not stage event clip for live view of %s: %s",
+        this.deviceId,
+        (err as Error).message,
+      );
+      this.stopStream(request.sessionID);
+      return;
+    }
+
     // -srtp_out_params expects a SINGLE base64 string of (key || salt) bytes,
     // not the concatenation of two separate base64 encodings. iOS sends two
     // raw buffers; we concatenate them before base64-encoding.
@@ -217,17 +240,12 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "error",
       // Pace the input at native frame-rate so iOS receives a smooth RTP stream.
       "-re",
-      // iOS Home expects a *continuous* live feed. OnlyCat events are 5–10 s
-      // clips, so once the clip ends iOS sees the stream end and gives up.
-      // Loop the clip indefinitely — the user always sees the latest event
-      // playing on repeat. ffmpeg still exits cleanly when iOS stops the
-      // session. (OnlyCat HLS is VOD, so ffmpeg starts at segment 0 by
-      // default; no -live_start_index needed — that flag was removed in
-      // ffmpeg 8.x anyway.)
+      // Loop the locally-downloaded clip indefinitely — iOS expects a
+      // continuous live feed and OnlyCat events are only ~10 s long.
       "-stream_loop",
       "-1",
       "-i",
-      sourceUrl,
+      tempFile,
       "-an",
       "-c:v",
       "copy",
@@ -260,7 +278,30 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
   private stopStream(sessionID: string): void {
     const session = this.sessions.get(sessionID);
     session?.process?.stop();
+    if (session?.tempFile) {
+      const path = session.tempFile;
+      // Best-effort cleanup. If a stream restarts before the unlink lands,
+      // the file is overwritten on next download — no harm done.
+      unlink(path).catch(() => {
+        /* ignored: file may already be gone, or never created. */
+      });
+    }
     this.sessions.delete(sessionID);
+  }
+
+  private async downloadEventClip(event: CachedEvent): Promise<string> {
+    const url = this.buildSourceUrl(event);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`gateway returned HTTP ${response.status}`);
+    }
+    const buf = Buffer.from(await response.arrayBuffer());
+    const path = join(
+      tmpdir(),
+      `onlycat-${this.deviceId.replace(/[^A-Za-z0-9_-]/g, "_")}-${event.eventId}.mp4`,
+    );
+    await writeFile(path, buf);
+    return path;
   }
 
   private buildSourceUrl(event: { deviceId: string; eventId: number; accessToken?: string }): string {
