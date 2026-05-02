@@ -2,6 +2,17 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11]
+
+### Fixed
+
+- **Live RTP feed now reaches iOS.** The RTP/SRTP output URL was missing `rtcpport=`, so ffmpeg defaulted to sending RTCP on `videoPort + 1`. iOS HKSV multiplexes RTP and RTCP on the same port, doesn't listen on `+1`, and tore the session down before any video frames flowed — surfacing as `Stream ends prematurely` from ffmpeg's HTTPS demuxer when iOS killed the pipe. URL now passes `rtcpport={videoPort}`.
+
+### Added
+
+- Info-level logging when transit policies load (count + names + idle-lock flag) so users can confirm their policy names match `unlockPolicyName` / `lockPolicyName`.
+- Info-level logging when the HomeKit lock toggle fires, including which policy is being activated.
+
 ## [0.2.10]
 
 ### Fixed

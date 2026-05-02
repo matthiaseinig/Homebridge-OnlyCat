@@ -354,6 +354,13 @@ export class FlapAccessory {
 
   private async handleLockTarget(value: CharacteristicValue): Promise<void> {
     const desiredSecured = value === LOCK_SECURED;
+    this.log.info(
+      "Lock target requested: %s on %s (configured names: lock=%j, unlock=%j)",
+      desiredSecured ? "lock" : "unlock",
+      this.device.deviceId,
+      this.lockPolicyName ?? null,
+      this.unlockPolicyName ?? null,
+    );
     const target = this.findPolicyForLockState(desiredSecured);
     if (!target) {
       this.log.warn(
@@ -368,6 +375,12 @@ export class FlapAccessory {
       return;
     }
     try {
+      this.log.info(
+        "Activating policy %j (id=%d) on %s",
+        target.name,
+        target.deviceTransitPolicyId,
+        this.device.deviceId,
+      );
       await this.client.call("activateDeviceTransitPolicy", {
         deviceId: this.device.deviceId,
         deviceTransitPolicyId: target.deviceTransitPolicyId,

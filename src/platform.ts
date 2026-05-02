@@ -285,12 +285,21 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
     if (!this.client) return;
     try {
       const summaries = await this.client.call("getDeviceTransitPolicies", { deviceId });
+      const loaded: string[] = [];
       for (const summary of summaries) {
         const policy = await this.client.call("getDeviceTransitPolicy", {
           deviceTransitPolicyId: summary.deviceTransitPolicyId,
         });
         flap.applyPolicy(policy);
+        loaded.push(`"${policy.name}" (id=${policy.deviceTransitPolicyId}, idleLock=${policy.transitPolicy?.idleLock ?? "?"})`);
       }
+      this.log.info(
+        "Loaded %d transit polic%s for %s: %s",
+        loaded.length,
+        loaded.length === 1 ? "y" : "ies",
+        deviceId,
+        loaded.join(", ") || "(none)",
+      );
     } catch (err) {
       this.log.warn(
         "Failed to load transit policies for %s: %s",

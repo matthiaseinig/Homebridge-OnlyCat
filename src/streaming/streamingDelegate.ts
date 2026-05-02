@@ -241,7 +241,11 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "AES_CM_128_HMAC_SHA1_80",
       "-srtp_out_params",
       srtpOutParams,
-      `srtp://${prepare.targetAddress}:${prepare.videoPort}?pkt_size=1316`,
+      // iOS HKSV multiplexes RTP and RTCP on the same port. ffmpeg defaults
+      // to RTCP on RTP port + 1 unless we set rtcpport explicitly. iOS
+      // doesn't listen on +1 and tears the session down with no incoming
+      // packets — we have to tell ffmpeg to use the same port for both.
+      `srtp://${prepare.targetAddress}:${prepare.videoPort}?rtcpport=${prepare.videoPort}&pkt_size=1316`,
     ];
 
     session.process = new FfmpegProcess({

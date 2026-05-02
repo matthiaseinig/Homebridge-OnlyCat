@@ -285,7 +285,12 @@ describe("OnlyCatStreamingDelegate", () => {
     // -live_start_index was removed in ffmpeg 8.x and was never needed for
     // OnlyCat's VOD HLS playlists — make sure it is NOT in the args.
     expect(args).not.toContain("-live_start_index");
-    expect(args.some((a: string) => a.startsWith("srtp://192.168.1.20"))).toBe(true);
+    expect(
+      args.some(
+        (a: string) =>
+          a.startsWith("srtp://192.168.1.20") && a.includes("rtcpport="),
+      ),
+    ).toBe(true);
     // -srtp_out_params must be a SINGLE base64(key||salt), not two
     // base64-strings concatenated. Verify it round-trips to the right length
     // (16 + 14 = 30 bytes → 40 base64 chars).
