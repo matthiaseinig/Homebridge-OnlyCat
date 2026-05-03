@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19]
+
+### Fixed
+
+- **GitHub installs now build `dist/` automatically.** The package was missing an npm `prepare` script, so `npm install github:matthiaseinig/Homebridge-OnlyCat#vX.Y.Z` copied the TypeScript sources but never compiled them. Homebridge then couldn't load the plugin (entry point `dist/index.js` did not exist). The `prepare` lifecycle script now runs `tsc` during install — npm temporarily pulls the dev-dependency toolchain, compiles, then cleans the devDeps out, leaving only the runtime tree.
+
 ## [0.2.18]
 
 ### Changed
