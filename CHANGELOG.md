@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.18]
+
+### Changed
+
+- `ffmpeg-for-homebridge` moved from `dependencies` to `optionalDependencies`. If the binary download fails on an unusual architecture or behind a restrictive corporate proxy, `npm install` still succeeds — the plugin then falls back to the system `ffmpeg` on `PATH`, which `resolveFfmpegPath()` already handled. The happy path (Homebridge OS image, Pi, NAS Docker) gets the bundled binary as before.
+
 ## [0.2.17]
 
 ### Added
