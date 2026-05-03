@@ -302,34 +302,52 @@ describe("OnlyCatStreamingDelegate", () => {
       expect(
         args.some((a: string) => a.endsWith("onlycat-d-11.mp4")),
       ).toBe(true);
-      // v0.2.24: silent AAC-ELD audio is synthesised via lavfi anullsrc, so
-      // the pipeline now has -map 1:a + libfdk_aac instead of -an.
-      expect(args).not.toContain("-an");
-      expect(
-        args.some((a: string) => a.includes("anullsrc=")),
-      ).toBe(true);
-      expect(args).toContain("libfdk_aac");
-      expect(args).toContain("aac_eld");
+      // v0.2.25: pipeline mirrors homebridge-camera-ffmpeg — no audio,
+      // single SRTP video output, aspect-preserving scale filter.
+      expect(args).toContain("-an");
+      expect(args).toContain("-sn");
+      expect(args).toContain("-dn");
+      expect(args).not.toContain("libfdk_aac");
+      expect(args).not.toContain("aac_eld");
+      expect(args).not.toContain("anullsrc");
       expect(args).toContain("-re");
+      expect(args).toContain("-tune");
+      expect(args).toContain("zerolatency");
       const loopIdx = args.indexOf("-stream_loop");
       expect(loopIdx).toBeGreaterThan(-1);
       expect(args[loopIdx + 1]).toBe("-1");
       expect(args).not.toContain("-live_start_index");
+      // Aspect-preserving scale + even-divisor adjustment.
+      expect(
+        args.some(
+          (a: string) => a.includes("force_original_aspect_ratio=decrease"),
+        ),
+      ).toBe(true);
+      // Plain CBR — no -maxrate / -bufsize.
+      expect(args).not.toContain("-maxrate");
+      expect(args).not.toContain("-bufsize");
+      // libx264 with no profile/level pinning.
+      expect(args).not.toContain("-profile:v");
+      expect(args).not.toContain("-level:v");
       expect(
         args.some(
           (a: string) =>
             a.startsWith("srtp://192.168.1.20") && a.includes("rtcpport="),
         ),
       ).toBe(true);
-      // Both video and audio outputs carry their own -srtp_out_params.
+      // Single video output carries one -srtp_out_params block.
       const paramsIndices = args
         .map((a: string, i: number) => (a === "-srtp_out_params" ? i : -1))
         .filter((i: number) => i >= 0);
-      expect(paramsIndices.length).toBe(2);
-      for (const idx of paramsIndices) {
-        const decoded = Buffer.from(args[idx + 1]!, "base64");
-        expect(decoded.length).toBe(30);
-      }
+      expect(paramsIndices.length).toBe(1);
+      const decoded = Buffer.from(args[paramsIndices[0]! + 1]!, "base64");
+      expect(decoded.length).toBe(30);
+      // SSRC must be the value we generated in prepareStream (12345 from the
+      // mocked CameraController.generateSynchronisationSource), not whatever
+      // iOS echoes back in the START request.
+      const ssrcIdx = args.indexOf("-ssrc");
+      expect(ssrcIdx).toBeGreaterThan(-1);
+      expect(args[ssrcIdx + 1]).toBe("12345");
     } finally {
       restore();
     }

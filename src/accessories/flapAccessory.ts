@@ -677,18 +677,12 @@ function defaultStreamingOptions(): unknown {
     },
     audio: {
       twoWayAudio: false,
-      // iOS allocates audio RTP sockets in prepareStream regardless of
-      // whether we declare audio support. Declaring AAC-ELD lets us
-      // synthesise silent audio packets in ffmpeg so the audio session
-      // sees activity — without this, iOS gates video rendering on the
-      // empty audio session and the video tile spins forever even when
-      // valid H.264 is reaching the device.
-      codecs: [
-        {
-          type: "AAC-eld",
-          samplerate: 16,
-        },
-      ],
+      // Empty codec list — iOS allocates audio RTP sockets in prepareStream
+      // anyway (HAP-NodeJS schema requires it) but won't expect us to send
+      // anything on them. Matches homebridge-camera-ffmpeg when audio is
+      // disabled. Synthesising silent audio (the v0.2.24 attempt) did not
+      // unblock the video tile, so we go back to the simpler config.
+      codecs: [],
     },
   };
 }

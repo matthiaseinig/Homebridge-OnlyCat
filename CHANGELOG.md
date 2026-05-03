@@ -2,15 +2,33 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.25]
+
+### Fixed
+
+- **Live view actually plays.** After 0.2.5–0.2.24 each tried a different theory (HLS demuxer flags, profile/level pinning, MP4 download, SSRC int32 cast, synthesised AAC-ELD audio) and each ended with the same symptom — ~1 MB of valid H.264 reaching iOS over ~26 s, then session timeout — we ran a side-by-side dev test against `homebridge-camera-ffmpeg` 3.1.4 with a `lavfi testsrc` input. That rendered immediately on the same Mac + same iOS Home + same network. Capturing camera-ffmpeg's exact ffmpeg invocation revealed our pipeline had drifted in five compounding ways:
+
+  1. Synthesised AAC-ELD audio output (added in 0.2.24) — camera-ffmpeg uses `-an -sn -dn` and works.
+  2. `-profile:v` and `-level:v` pinned to iOS's `StartStreamRequest` values — camera-ffmpeg doesn't pin them; libx264 emits H.264 high and iOS accepts it.
+  3. `-maxrate` and `-bufsize` on top of `-b:v` — camera-ffmpeg uses just `-b:v 299k`.
+  4. Plain stretch `scale=W:H` filter — camera-ffmpeg uses `scale='min(W,iw)':'min(H,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`.
+  5. `-ssrc video.ssrc | 0` (bit-cast of iOS's echo) — camera-ffmpeg uses the SSRC it generated itself in `prepareStream`. iOS doesn't actually require us to use the value it echoes; the safer pattern is to drive ffmpeg from the value we own.
+
+  Pipeline rewritten to mirror camera-ffmpeg's known-good HKSV setup verbatim. `defaultStreamingOptions()` declares an empty audio codec list (skipping the audio session entirely). Stream confirmed end-to-end: iOS Home renders the cached event clip on loop within milliseconds of opening the tile.
+
+### Removed
+
+- All AAC-ELD audio synthesis added in 0.2.24 — it wasn't the missing piece, and removing it simplifies the pipeline.
+
 ## [0.2.24]
 
 ### Fixed
 
-- **Live view: synthesised silent AAC-ELD audio so iOS HKSV stops gating video on an empty audio session.** Across 0.2.16–0.2.23 we kept seeing ffmpeg send ~1 MB of valid H.264 to iOS with the camera tile spinning forever, and the session always ended in `ffmpeg exited with code 255` after ~26 s — exactly the iOS HKSV "video session never went active" timeout. The empty-audio-codec approach from 0.2.16 turned out not to actually skip the audio session; iOS still allocated audio RTP sockets in `prepareStream` and waited for them. Now `defaultStreamingOptions()` declares AAC-ELD support and the ffmpeg pipeline pulls a `lavfi` `anullsrc` second input and encodes it to mono AAC-ELD (16 kHz, 24 kbps) into a parallel SRTP socket. The audio session sees activity, iOS releases the video session, and the tile finally renders.
+- **Attempted fix: synthesised silent AAC-ELD audio** so iOS HKSV would stop gating video on an empty audio session. Did not unblock the spinner; rolled back in 0.2.25 in favour of mirroring `homebridge-camera-ffmpeg`'s exact pipeline (which uses no audio at all).
 
 ### Internal
 
-- streamingDelegate ffmpeg args now contain explicit `-map 0:v` / `-map 1:a` so the multi-input pipeline is unambiguous to ffmpeg's muxer.
+- streamingDelegate ffmpeg args briefly carried explicit `-map 0:v` / `-map 1:a` for the multi-input audio path. Reverted in 0.2.25.
 
 ## [0.2.23]
 

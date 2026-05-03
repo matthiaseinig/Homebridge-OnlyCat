@@ -45,6 +45,9 @@ interface PrepareInfo {
   videoPort: number;
   videoSrtpKey: Buffer;
   videoSrtpSalt: Buffer;
+  // Our generated SSRC, returned to iOS in prepareStream and re-used as the
+  // ffmpeg `-ssrc` arg. Matches the homebridge-camera-ffmpeg pattern.
+  videoSsrc: number;
   audioPort: number;
 }
 
@@ -139,22 +142,31 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     try {
       const videoReturnPort = await this.portAllocator();
       const audioReturnPort = await this.portAllocator();
+      // Generate our SSRC ONCE and re-use it both in the prepare response and
+      // in the ffmpeg `-ssrc` arg. iOS echoes our value back in the START
+      // request as `video.ssrc`, but the safer pattern (and what
+      // homebridge-camera-ffmpeg does) is to drive ffmpeg from the value we
+      // own — no risk of an unsigned-overflow surprise from the framework.
+      const videoSsrc =
+        this.api.hap.CameraController.generateSynchronisationSource();
       this.sessions.set(request.sessionID, {
         prepare: {
           targetAddress: request.targetAddress,
           videoPort: request.video.port,
           videoSrtpKey: request.video.srtp_key,
           videoSrtpSalt: request.video.srtp_salt,
+          videoSsrc,
           audioPort: request.audio.port,
         },
       });
-      // Streaming options now declare an empty audio codec list, so iOS
-      // doesn't expect an audio block. Sending one regardless made iOS wait
-      // for audio packets we never produce, leaving the video tile spinning.
+      // We declare an empty audio codec list in supportedStreamingOptions, so
+      // iOS skips the audio session entirely. We still return an `audio`
+      // block here because hap-nodejs's PrepareStreamResponse schema requires
+      // it; ffmpeg never opens that socket.
       safeCallback(undefined, {
         video: {
           port: videoReturnPort,
-          ssrc: this.api.hap.CameraController.generateSynchronisationSource(),
+          ssrc: videoSsrc,
           srtp_key: request.video.srtp_key,
           srtp_salt: request.video.srtp_salt,
         },
@@ -234,157 +246,73 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       prepare.videoSrtpKey,
       prepare.videoSrtpSalt,
     ]).toString("base64");
-    const audioSrtpKey =
-      ((request as unknown as { audio?: { srtp_key: Buffer } }).audio?.srtp_key) ??
-      Buffer.alloc(16);
-    const audioSrtpSalt =
-      ((request as unknown as { audio?: { srtp_salt: Buffer } }).audio?.srtp_salt) ??
-      Buffer.alloc(14);
-    const audioSrtpOutParams = Buffer.concat([audioSrtpKey, audioSrtpSalt]).toString(
-      "base64",
-    );
-    // iOS sends its desired resolution / fps / max_bit_rate / profile / level
-    // in the StartStreamRequest. We must transcode to those values exactly —
-    // anything else and iOS silently drops the session with no rendered
-    // frames. The profile/level mismatch is invisible in our logs because
-    // ffmpeg encodes happily either way; only iOS's decoder rejects it.
     const targetWidth = video.width ?? 1280;
     const targetHeight = video.height ?? 720;
     const targetFps = video.fps ?? 30;
     const targetBitrate = video.max_bit_rate ?? 299; // kbps, iOS default
 
-    // hap-nodejs H264Profile/Level enum → libx264 string equivalents.
-    const profileFromIos =
-      ({ 0: "baseline", 1: "main", 2: "high" } as Record<number, string>)[
-        video.profile as number
-      ] ?? "baseline";
-    const levelFromIos =
-      ({ 0: "3.1", 1: "3.2", 2: "4.0" } as Record<number, string>)[
-        video.level as number
-      ] ?? "3.1";
-
-    // Audio params iOS sent in prepareStream — we mirror them on the way out
-    // so iOS's session bookkeeping balances. Defaults match the AAC-ELD spec
-    // we declare in supportedStreamingOptions.
-    const audioRequest = (request as unknown as {
-      audio?: { pt: number; ssrc: number; sample_rate?: number; max_bit_rate?: number };
-    }).audio;
-    const audioPt = audioRequest?.pt ?? 110;
-    const audioSsrc = audioRequest?.ssrc ?? 0;
-    const audioSamplerate = audioRequest?.sample_rate ?? 16;
-    const audioBitrate = audioRequest?.max_bit_rate ?? 24;
-
+    // Pipeline copied verbatim from homebridge-camera-ffmpeg's known-good
+    // HKSV streaming flow (3.1.4). Differences from our 0.2.16–0.2.24
+    // attempts that camera-ffmpeg deliberately does NOT do:
+    //   - No -profile:v / -level:v pinning. libx264 + -preset ultrafast
+    //     emits H.264 high; iOS HKSV accepts it.
+    //   - No -maxrate / -bufsize. A single -b:v cap is enough.
+    //   - No synthesised audio — `-an -sn -dn` and supportedStreamingOptions
+    //     declares an empty audio codec list. iOS skips the audio session.
+    //   - Aspect-preserving `force_original_aspect_ratio=decrease` plus an
+    //     even-divisor scale (libx264 needs even dimensions for yuv420p).
+    //   - Use the SSRC we generated in prepareStream — never the value
+    //     echoed back in StartStreamRequest.video.ssrc (which has hit
+    //     unsigned-overflow values in production logs).
     const args = [
       "-hide_banner",
-      // Verbose enough for the bridge log to show ffmpeg's negotiated SDP and
-      // per-second frame stats — we need that detail to diagnose iOS-side
-      // rejections, where ffmpeg otherwise dies silently with code 255.
       "-loglevel",
-      "info",
+      "error",
       "-re",
       "-stream_loop",
       "-1",
       "-i",
       tempFile,
-      // Synthetic silent audio source so the AAC-ELD output below has
-      // something to encode. iOS HKSV gates the video session on audio
-      // session activity even when we declare no codecs — a quiet AAC-ELD
-      // stream keeps it satisfied.
-      "-f",
-      "lavfi",
-      "-i",
-      `anullsrc=channel_layout=mono:sample_rate=${audioSamplerate * 1000}`,
-      // Encoder pipeline mirrors homebridge-camera-ffmpeg's known-good
-      // HKSV setup. -tune zerolatency implies bf=0, repeat-headers=1, and
-      // a tight GOP — no need for -bsf, -g, or -bf overrides on top of it.
-      "-c:v",
+      "-an",
+      "-sn",
+      "-dn",
+      "-codec:v",
       "libx264",
-      "-profile:v",
-      profileFromIos,
-      "-level:v",
-      levelFromIos,
-      "-preset",
-      "ultrafast",
-      "-tune",
-      "zerolatency",
       "-pix_fmt",
       "yuv420p",
       "-color_range",
       "mpeg",
-      // Map the file input as the video source, the lavfi silent source as
-      // the audio source. Without explicit -map ffmpeg picks both video
-      // streams from the file (it has none) and confuses the muxer.
-      "-map",
-      "0:v",
-      // Plain stretch to iOS's requested dimensions — no aspect-ratio
-      // padding. iOS HKSV decoders sometimes choke on padded streams.
-      "-vf",
-      `scale=${targetWidth}:${targetHeight}`,
       "-r",
       String(targetFps),
-      // CBR at iOS's requested ceiling. Buffer = 2× target is the
-      // homebridge-camera-ffmpeg convention.
+      "-preset",
+      "ultrafast",
+      "-tune",
+      "zerolatency",
+      "-filter:v",
+      `scale='min(${targetWidth},iw)':'min(${targetHeight},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`,
       "-b:v",
       `${targetBitrate}k`,
-      "-maxrate",
-      `${targetBitrate}k`,
-      "-bufsize",
-      `${targetBitrate * 2}k`,
-      "-f",
-      "rtp",
       "-payload_type",
       String(video.pt),
-      // ffmpeg parses -ssrc as signed int32 (max 2147483647) but RTP SSRC is
-      // an unsigned 32-bit value, so iOS happily sends values up to ~4.29e9.
-      // When iOS picks an SSRC > 2^31, ffmpeg refuses to write the RTP header
-      // ("out of range") and the stream never starts. Force-cast to signed
-      // int32 — same 32 bits on the wire; iOS reinterprets as unsigned.
       "-ssrc",
-      String(video.ssrc | 0),
+      String(prepare.videoSsrc),
+      "-f",
+      "rtp",
       "-srtp_out_suite",
       "AES_CM_128_HMAC_SHA1_80",
       "-srtp_out_params",
       srtpOutParams,
       // iOS HKSV multiplexes RTP and RTCP on the same port.
       `srtp://${prepare.targetAddress}:${prepare.videoPort}?rtcpport=${prepare.videoPort}&pkt_size=1316`,
-      // Silent AAC-ELD audio session. iOS HKSV expects packets on the audio
-      // SRTP socket whether or not we have real audio.
-      "-map",
-      "1:a",
-      "-c:a",
-      "libfdk_aac",
-      "-profile:a",
-      "aac_eld",
-      "-flags",
-      "+global_header",
-      "-ar",
-      `${audioSamplerate}k`,
-      "-b:a",
-      `${audioBitrate}k`,
-      "-ac",
-      "1",
-      "-payload_type",
-      String(audioPt),
-      "-ssrc",
-      String(audioSsrc | 0),
-      "-f",
-      "rtp",
-      "-srtp_out_suite",
-      "AES_CM_128_HMAC_SHA1_80",
-      "-srtp_out_params",
-      audioSrtpOutParams,
-      `srtp://${prepare.targetAddress}:${prepare.audioPort}?rtcpport=${prepare.audioPort}&pkt_size=188`,
     ];
 
     this.log.info(
-      "Live stream for %s: %dx%d @ %d fps, %d kbps, H.264 %s level %s → %s:%d",
+      "Live stream for %s: %dx%d @ %d fps, %d kbps → %s:%d",
       this.deviceId,
       targetWidth,
       targetHeight,
       targetFps,
       targetBitrate,
-      profileFromIos,
-      levelFromIos,
       prepare.targetAddress,
       prepare.videoPort,
     );
