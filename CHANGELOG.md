@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.22]
+
+### Fixed
+
+- **Encoder switched from CBR to CRF.** At iOS's typical 299 kbps cap on 1280×720 @ 30 fps, libx264 in CBR mode was forced to QP 33+ — the resulting frames were so degraded that iOS HKSV's decoder rejected the stream silently. CRF 23 (constant *quality*) produces good-looking frames at whatever bitrate the content needs, with `-maxrate` and a generous buffer keeping peaks bounded under iOS's ceiling.
+
 ## [0.2.21]
 
 ### Fixed

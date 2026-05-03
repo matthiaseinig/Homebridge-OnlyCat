@@ -297,14 +297,19 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       String(targetFps),
       "-g",
       String(Math.max(2, targetFps * 2)),
-      // Constant bit-rate matching what iOS asked for. Without these libx264
-      // defaults to CRF and can blow well past iOS's expected ceiling.
-      "-b:v",
-      `${targetBitrate}k`,
+      // CRF (constant rate factor) for quality-targeted encoding. At iOS's
+      // common 299 kbps cap on 1280×720 @ 30 fps, CBR forces libx264 to
+      // QP 33+ — the resulting frames are so degraded that iOS's HKSV
+      // decoder rejects the stream silently. CRF 23 produces good quality
+      // and stays comfortably under iOS's ceiling for low-motion cat-flap
+      // content. -maxrate keeps brief peaks bounded; large -bufsize lets
+      // the encoder smooth bursts across keyframes.
+      "-crf",
+      "23",
       "-maxrate",
-      `${targetBitrate}k`,
-      "-bufsize",
       `${targetBitrate * 2}k`,
+      "-bufsize",
+      `${targetBitrate * 4}k`,
       "-f",
       "rtp",
       "-payload_type",
