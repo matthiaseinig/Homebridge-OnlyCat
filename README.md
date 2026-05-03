@@ -1,4 +1,8 @@
-# homebridge-onlycat
+<p align="center">
+  <img src="assets/onlycat-logo.jpg" alt="OnlyCat logo" width="180" />
+</p>
+
+# Homebridge-OnlyCat
 
 Homebridge plugin for the [OnlyCat](https://www.onlycat.com) smart cat flap.
 

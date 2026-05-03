@@ -2,11 +2,17 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.14]
+## [0.2.15]
 
 ### Fixed
 
-- **Live view now actually decodes on iOS.** OnlyCat encodes its event clips in H.264 **High Profile**, which iOS HKSV cannot reliably play back via passthrough — the SRTP packets arrived (we logged 294 frames going out across 29 s), but iOS just sat on the spinner because it couldn't decode them. We now re-encode the live stream to H.264 Baseline with `-preset ultrafast -tune zerolatency`. At 800×600 / 10 fps the CPU cost is a few percent of a Raspberry Pi core, so this is fine on the deployment targets (Pi, NAS).
+- **Live stream now matches iOS's requested resolution / fps / bit-rate.** iOS sends its desired stream parameters in `StartStreamRequest.video` (e.g. 1280×720 @ 30 fps, ~299 kbps); we previously ignored them and let libx264 emit 800×600 at whatever bit-rate it picked. iOS responded by silently tearing the session down before any frames arrived (visible in our logs as "ffmpeg exited with code 255 / no stderr output"). The pipeline now scales + pads to iOS's resolution, paces at the requested fps, and pins the bit-rate to what iOS asked for. Constant bit-rate (`-b:v / -maxrate / -bufsize`) replaces libx264's default CRF.
+- Logs the active live-view target (resolution, fps, bit-rate, target IP/port) when the stream starts so future diagnostics don't need to guess.
+
+### Changed
+
+- Project now displays the OnlyCat logo at the top of the README; Homebridge UI plugin search will pick it up as the plugin icon. Image is committed under `assets/onlycat-logo.jpg` so the repo isn't dependent on Google's CDN.
+- README title rebranded to **Homebridge-OnlyCat** (matches the GitHub repo name).
 
 ## [0.2.14]
 

@@ -234,40 +234,58 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       prepare.videoSrtpKey,
       prepare.videoSrtpSalt,
     ]).toString("base64");
+    // iOS sends its desired resolution / fps / max_bit_rate in the
+    // StartStreamRequest. We must transcode to those values — feeding a
+    // 800×600 stream when iOS asked for 1280×720 makes iOS silently drop
+    // the session and kill us with no stderr output, which is exactly the
+    // failure mode we kept hitting. Honour iOS's request literally; libx264
+    // ultrafast still runs faster than realtime at these sizes.
+    const targetWidth = video.width ?? 1280;
+    const targetHeight = video.height ?? 720;
+    const targetFps = video.fps ?? 30;
+    const targetBitrate = video.max_bit_rate ?? 299; // kbps, iOS default
+
     const args = [
       "-hide_banner",
       "-loglevel",
       "warning",
-      // Pace the input at native frame-rate so iOS receives a smooth RTP stream.
       "-re",
-      // Loop the locally-downloaded clip indefinitely — iOS expects a
-      // continuous live feed and OnlyCat events are only ~10 s long.
       "-stream_loop",
       "-1",
       "-i",
       tempFile,
       "-an",
-      // Re-encode to H.264 Baseline. OnlyCat clips are encoded in High
-      // profile, which iOS HKSV cannot reliably decode via passthrough —
-      // the result is a frozen snapshot with the spinner. Baseline is the
-      // safest interoperable profile. ultrafast + zerolatency keep CPU
-      // cost negligible at 800x600 / 10 fps. yuv420p ensures iOS-supported
-      // chroma; -bf 0 disables B-frames (Baseline doesn't allow them);
-      // -g sets the keyframe interval so iOS sees a fresh I-frame quickly.
       "-c:v",
       "libx264",
       "-profile:v",
       "baseline",
+      "-level:v",
+      "3.1",
       "-preset",
       "ultrafast",
       "-tune",
       "zerolatency",
       "-pix_fmt",
       "yuv420p",
+      "-color_range",
+      "mpeg",
       "-bf",
       "0",
+      // Scale to iOS's requested dimensions, preserving aspect via padding.
+      "-vf",
+      `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`,
+      "-r",
+      String(targetFps),
       "-g",
-      "30",
+      String(Math.max(2, targetFps * 2)),
+      // Constant bit-rate matching what iOS asked for. Without these libx264
+      // defaults to CRF and can blow well past iOS's expected ceiling.
+      "-b:v",
+      `${targetBitrate}k`,
+      "-maxrate",
+      `${targetBitrate}k`,
+      "-bufsize",
+      `${targetBitrate * 2}k`,
       "-f",
       "rtp",
       "-payload_type",
@@ -278,12 +296,20 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "AES_CM_128_HMAC_SHA1_80",
       "-srtp_out_params",
       srtpOutParams,
-      // iOS HKSV multiplexes RTP and RTCP on the same port. ffmpeg defaults
-      // to RTCP on RTP port + 1 unless we set rtcpport explicitly. iOS
-      // doesn't listen on +1 and tears the session down with no incoming
-      // packets — we have to tell ffmpeg to use the same port for both.
+      // iOS HKSV multiplexes RTP and RTCP on the same port.
       `srtp://${prepare.targetAddress}:${prepare.videoPort}?rtcpport=${prepare.videoPort}&pkt_size=1316`,
     ];
+
+    this.log.info(
+      "Live stream for %s: %dx%d @ %d fps, %d kbps → %s:%d",
+      this.deviceId,
+      targetWidth,
+      targetHeight,
+      targetFps,
+      targetBitrate,
+      prepare.targetAddress,
+      prepare.videoPort,
+    );
 
     session.process = new FfmpegProcess({
       command: this.ffmpegPath,
