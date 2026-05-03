@@ -45,10 +45,10 @@ describe("CatPresenceAccessory", () => {
     expect(info.getCharacteristic("Name").value).toBe("Whiskers");
   });
 
-  it("falls back to rfidCode when no label is provided", () => {
+  it("falls back to 'Cat RFID <code>' when no label is provided", () => {
     const { accessory } = build({ label: undefined });
     const info = accessory.getService("AccessoryInformation")!;
-    expect(info.getCharacteristic("Name").value).toBe("rfid-1");
+    expect(info.getCharacteristic("Name").value).toBe("Cat RFID rfid-1");
   });
 
   it("ignores events for other devices", () => {

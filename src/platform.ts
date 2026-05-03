@@ -7,7 +7,10 @@ import type {
   PlatformConfig,
   Service,
 } from "homebridge";
-import { CatPresenceAccessory } from "./accessories/catPresenceAccessory.js";
+import {
+  CatPresenceAccessory,
+  petDisplayName,
+} from "./accessories/catPresenceAccessory.js";
 import { FlapAccessory } from "./accessories/flapAccessory.js";
 import { OnlyCatClient } from "./api/client.js";
 import type { DeviceRecord, RfidProfile } from "./api/types.js";
@@ -389,7 +392,7 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
 
     let accessory: PlatformAccessory;
     let isNew = false;
-    const displayName = profile.label ?? profile.rfidCode;
+    const displayName = petDisplayName(profile);
 
     if (cached) {
       accessory = cached;

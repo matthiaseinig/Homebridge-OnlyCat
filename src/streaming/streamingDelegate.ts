@@ -234,16 +234,25 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       prepare.videoSrtpKey,
       prepare.videoSrtpSalt,
     ]).toString("base64");
-    // iOS sends its desired resolution / fps / max_bit_rate in the
-    // StartStreamRequest. We must transcode to those values — feeding a
-    // 800×600 stream when iOS asked for 1280×720 makes iOS silently drop
-    // the session and kill us with no stderr output, which is exactly the
-    // failure mode we kept hitting. Honour iOS's request literally; libx264
-    // ultrafast still runs faster than realtime at these sizes.
+    // iOS sends its desired resolution / fps / max_bit_rate / profile / level
+    // in the StartStreamRequest. We must transcode to those values exactly —
+    // anything else and iOS silently drops the session with no rendered
+    // frames. The profile/level mismatch is invisible in our logs because
+    // ffmpeg encodes happily either way; only iOS's decoder rejects it.
     const targetWidth = video.width ?? 1280;
     const targetHeight = video.height ?? 720;
     const targetFps = video.fps ?? 30;
     const targetBitrate = video.max_bit_rate ?? 299; // kbps, iOS default
+
+    // hap-nodejs H264Profile/Level enum → libx264 string equivalents.
+    const profileFromIos =
+      ({ 0: "baseline", 1: "main", 2: "high" } as Record<number, string>)[
+        video.profile as number
+      ] ?? "baseline";
+    const levelFromIos =
+      ({ 0: "3.1", 1: "3.2", 2: "4.0" } as Record<number, string>)[
+        video.level as number
+      ] ?? "3.1";
 
     const args = [
       "-hide_banner",
@@ -261,9 +270,9 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "-c:v",
       "libx264",
       "-profile:v",
-      "baseline",
+      profileFromIos,
       "-level:v",
-      "3.1",
+      levelFromIos,
       "-preset",
       "ultrafast",
       "-tune",
@@ -274,6 +283,13 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "mpeg",
       "-bf",
       "0",
+      // Repeat SPS/PPS NAL units in-band with every keyframe. iOS HKSV
+      // resyncs its decoder on each I-frame and silently drops the stream
+      // if the parameter sets aren't there — that matches the symptom we
+      // were chasing (894 KiB of perfectly-encoded H.264 sent to iOS, iOS
+      // rendering nothing, ffmpeg killed by SIGINT after iOS gave up).
+      "-bsf:v",
+      "dump_extra=freq=keyframe",
       // Scale to iOS's requested dimensions, preserving aspect via padding.
       "-vf",
       `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`,
@@ -293,8 +309,13 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "rtp",
       "-payload_type",
       String(video.pt),
+      // ffmpeg parses -ssrc as signed int32 (max 2147483647) but RTP SSRC is
+      // an unsigned 32-bit value, so iOS happily sends values up to ~4.29e9.
+      // When iOS picks an SSRC > 2^31, ffmpeg refuses to write the RTP header
+      // ("out of range") and the stream never starts. Force-cast to signed
+      // int32 — same 32 bits on the wire; iOS reinterprets as unsigned.
       "-ssrc",
-      String(video.ssrc),
+      String(video.ssrc | 0),
       "-srtp_out_suite",
       "AES_CM_128_HMAC_SHA1_80",
       "-srtp_out_params",
@@ -304,12 +325,14 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     ];
 
     this.log.info(
-      "Live stream for %s: %dx%d @ %d fps, %d kbps → %s:%d",
+      "Live stream for %s: %dx%d @ %d fps, %d kbps, H.264 %s level %s → %s:%d",
       this.deviceId,
       targetWidth,
       targetHeight,
       targetFps,
       targetBitrate,
+      profileFromIos,
+      levelFromIos,
       prepare.targetAddress,
       prepare.videoPort,
     );

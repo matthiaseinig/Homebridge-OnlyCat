@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/onlycat-logo.jpg" alt="OnlyCat logo" width="180" />
+  <img src="https://raw.githubusercontent.com/matthiaseinig/Homebridge-OnlyCat/main/assets/onlycat-logo.jpg" alt="OnlyCat logo" width="180" />
 </p>
 
 # Homebridge-OnlyCat

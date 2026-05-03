@@ -2,6 +2,19 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.20]
+
+### Fixed
+
+- **Live view: SSRC overflow blocking ffmpeg from ever writing the RTP header.** iOS sends an unsigned 32-bit SSRC (range 0–4294967295) but ffmpeg parses `-ssrc` as a signed int32 (max 2147483647). When iOS picked an SSRC above 2^31 (about half the time), ffmpeg refused with `Value … for parameter 'ssrc' out of range` and the stream never started — for everything earlier we just saw "exit 255 / no stderr". Now `video.ssrc | 0` casts to signed int32 with the same wire bits; iOS reinterprets as unsigned and the session opens cleanly.
+- **Live view's H.264 profile + level now match iOS's request, and SPS/PPS are repeated in-band.** The plugin was hardcoding Baseline 3.1 regardless of what iOS asked for in `StartStreamRequest.video.profile` / `.level`, and ffmpeg's RTP muxer sends SPS/PPS only once at stream start. iOS HKSV's decoder resyncs on every I-frame and silently drops the session if the parameter sets aren't present. Now we transcode to whichever profile/level iOS picked and add `-bsf:v dump_extra=freq=keyframe` so SPS/PPS travel with every keyframe.
+
+### Changed
+
+- README's logo image URL is now an absolute GitHub raw URL so the Homebridge UI plugin tile actually renders the icon.
+- Cat presence accessory falls back to **"Cat RFID *<code>*"** when no friendly label is set in the OnlyCat app, instead of the bare 15-digit RFID number. Way more obvious in the iOS Camera Details pairing dialog.
+- `engines.node` relaxed to `>=18.20.0`. Silences the spurious "does not satisfy" warning on Homebridge OS images that ship with Node 24.
+
 ## [0.2.19]
 
 ### Fixed

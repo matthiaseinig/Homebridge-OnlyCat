@@ -18,6 +18,15 @@ const SUBTYPE_PRESENCE = "presence";
 const OCCUPANCY_DETECTED = 1;
 const OCCUPANCY_NOT_DETECTED = 0;
 
+/**
+ * Friendly display name for a cat. Falls back to "Cat RFID <code>" when the
+ * OnlyCat app hasn't given the cat a label yet — far more obvious in the iOS
+ * "Camera Details" pairing dialog than the bare 15-digit RFID number.
+ */
+export function petDisplayName(profile: RfidProfile): string {
+  return profile.label ?? `Cat RFID ${profile.rfidCode}`;
+}
+
 export interface CatPresenceDeps {
   api: API;
   log: Logging;
@@ -50,7 +59,7 @@ export class CatPresenceAccessory {
     this.configureInformation();
     this.presenceService = this.ensureService(
       this.api.hap.Service.OccupancySensor,
-      this.profile.label ?? this.profile.rfidCode,
+      petDisplayName(this.profile),
       SUBTYPE_PRESENCE,
     );
 
@@ -72,7 +81,7 @@ export class CatPresenceAccessory {
     this.configureInformation();
     this.presenceService.setCharacteristic(
       this.api.hap.Characteristic.Name,
-      this.profile.label ?? this.profile.rfidCode,
+      petDisplayName(this.profile),
     );
   }
 
@@ -92,7 +101,7 @@ export class CatPresenceAccessory {
       .setCharacteristic(Characteristic.SerialNumber, this.profile.rfidCode)
       .setCharacteristic(
         Characteristic.Name,
-        this.profile.label ?? this.profile.rfidCode,
+        petDisplayName(this.profile),
       );
   }
 
@@ -153,7 +162,7 @@ export class CatPresenceAccessory {
     );
     this.log.debug(
       "Cat %s (%s) is now %s",
-      this.profile.label ?? this.profile.rfidCode,
+      petDisplayName(this.profile),
       this.profile.rfidCode,
       home ? "home" : "away",
     );
