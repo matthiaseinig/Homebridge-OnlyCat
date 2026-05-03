@@ -1,6 +1,7 @@
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveFfmpegPath } from "./ffmpegPath.js";
 import type {
   API,
   CameraController,
@@ -71,7 +72,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     this.log = deps.log;
     this.deviceId = deps.deviceId;
     this.eventCache = deps.eventCache;
-    this.ffmpegPath = deps.ffmpegPath ?? "ffmpeg";
+    this.ffmpegPath = deps.ffmpegPath ?? resolveFfmpegPath();
     this.spawner = deps.spawner;
     this.snapshotFetcher = deps.snapshotFetcher ?? new HttpSnapshotFetcher();
     this.portAllocator = deps.portAllocator ?? pickUdpPort;

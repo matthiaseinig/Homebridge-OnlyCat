@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.17]
+
+### Added
+
+- **ffmpeg now ships with the plugin.** `ffmpeg-for-homebridge` is a runtime dependency, so installing `homebridge-onlycat` automatically pulls a prebuilt ffmpeg binary (with libx264 + libfdk_aac) for the host platform — Linux x64/ARM, macOS x64/ARM, Windows. No more "apt-get install ffmpeg" friction on the official Homebridge OS image where the homebridge service account can't sudo. The plugin still respects `config.ffmpegPath` for users who prefer their own build, and falls back to the system `ffmpeg` on PATH if the bundled binary isn't available.
+
 ## [0.2.16]
 
 ### Fixed

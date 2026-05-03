@@ -20,10 +20,11 @@ The plugin exposes each OnlyCat flap as a native HomeKit accessory:
 
 ## Requirements
 
-- Node.js 18.20+, 20.15+, or 22+
+- Node.js 18.20+, 20.15+, or 22+ (Node 22+ recommended for the bundled ffmpeg)
 - Homebridge 1.8+ (HomeKit Secure Video also requires an iCloud+ subscription on your Apple home hub)
-- `ffmpeg` available on the host's `PATH` (only needed for live view and HKSV recording)
 - An OnlyCat account with at least one flap, plus an API token from the OnlyCat mobile app
+
+A pre-built `ffmpeg` ships with the plugin via [`ffmpeg-for-homebridge`](https://github.com/homebridge/ffmpeg-for-homebridge), so you don't need to install it yourself. If you'd rather use a custom ffmpeg build, set `ffmpegPath` in the plugin config to its absolute path.
 
 ## Install
 

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { resolveFfmpegPath } from "./ffmpegPath.js";
 import type {
   CameraRecordingConfiguration,
   CameraRecordingDelegate,
@@ -46,7 +47,7 @@ export class OnlyCatRecordingDelegate implements CameraRecordingDelegate {
     this.log = deps.log;
     this.deviceId = deps.deviceId;
     this.eventCache = deps.eventCache;
-    this.ffmpegPath = deps.ffmpegPath ?? "ffmpeg";
+    this.ffmpegPath = deps.ffmpegPath ?? resolveFfmpegPath();
     this.spawner =
       deps.spawner ?? ((cmd, args) => spawn(cmd, args) as ChildProcessWithoutNullStreams);
     this.chunkSize = deps.chunkSize ?? DEFAULT_CHUNK_SIZE;
