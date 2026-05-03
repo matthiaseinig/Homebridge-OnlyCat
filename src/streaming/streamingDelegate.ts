@@ -1,6 +1,8 @@
+import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolveFfmpegPath } from "./ffmpegPath.js";
 import type {
   API,
@@ -28,6 +30,18 @@ import {
 
 const VIDEO_SOURCE_BASE = "https://gateway.onlycat.com/sharing/video";
 
+// Pre-rendered loop-divider clip shipped with the package. Resolved relative
+// to the compiled module in `dist/streaming/`. The slate is 1 s of solid
+// black at 1280×720 / 30 fps; scale2ref at runtime resizes it to match the
+// source clip's native dimensions, so 4:3 OnlyCat clips stay 4:3.
+const SLATE_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "assets",
+  "loop-slate.mp4",
+);
+
 export interface StreamingDelegateDeps {
   api: API;
   log: Logging;
@@ -36,6 +50,12 @@ export interface StreamingDelegateDeps {
   ffmpegPath?: string;
   spawner?: Spawner;
   snapshotFetcher?: SnapshotFetcher;
+  /**
+   * Prepend a 1-second black slate to the cached event clip when streaming
+   * the live view, so each `-stream_loop -1` cycle has a visible boundary.
+   * Defaults to true.
+   */
+  loopSlate?: boolean;
   // Allow tests to override port allocation deterministically.
   portAllocator?: () => Promise<number>;
 }
@@ -68,6 +88,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
   private readonly spawner?: Spawner;
   private readonly snapshotFetcher: SnapshotFetcher;
   private readonly portAllocator: () => Promise<number>;
+  private readonly loopSlate: boolean;
   private readonly sessions = new Map<string, ActiveSession>();
 
   constructor(deps: StreamingDelegateDeps) {
@@ -79,6 +100,7 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
     this.spawner = deps.spawner;
     this.snapshotFetcher = deps.snapshotFetcher ?? new HttpSnapshotFetcher();
     this.portAllocator = deps.portAllocator ?? pickUdpPort;
+    this.loopSlate = deps.loopSlate !== false;
   }
 
   attachController(controller: CameraController): void {
@@ -347,12 +369,111 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       throw new Error(`gateway returned HTTP ${response.status}`);
     }
     const buf = Buffer.from(await response.arrayBuffer());
-    const path = join(
+    const safeId = this.deviceId.replace(/[^A-Za-z0-9_-]/g, "_");
+    if (!this.loopSlate) {
+      // Skip augmentation entirely — stream the raw clip on seamless loop.
+      const rawPath = join(
+        tmpdir(),
+        `onlycat-${safeId}-${event.eventId}.mp4`,
+      );
+      await writeFile(rawPath, buf);
+      return rawPath;
+    }
+
+    const rawPath = join(
       tmpdir(),
-      `onlycat-${this.deviceId.replace(/[^A-Za-z0-9_-]/g, "_")}-${event.eventId}.mp4`,
+      `onlycat-${safeId}-${event.eventId}-raw.mp4`,
     );
-    await writeFile(path, buf);
-    return path;
+    const augmentedPath = join(
+      tmpdir(),
+      `onlycat-${safeId}-${event.eventId}.mp4`,
+    );
+    await writeFile(rawPath, buf);
+
+    // Prepend the shipped slate so each `-stream_loop -1` iteration has a
+    // visible boundary in iOS Home — otherwise the cached event clip
+    // replays seamlessly and looks like continuous live video.
+    try {
+      await this.buildAugmentedClip(rawPath, augmentedPath);
+      await unlink(rawPath).catch(() => {
+        /* best-effort cleanup */
+      });
+      return augmentedPath;
+    } catch (err) {
+      this.log.warn(
+        "Could not build loop slate for %s: %s — streaming raw clip without divider",
+        this.deviceId,
+        (err as Error).message,
+      );
+      return rawPath;
+    }
+  }
+
+  /**
+   * Re-encode `input` as `output` with a 1-second black slate prepended.
+   *
+   * The slate makes loop boundaries visible: each `-stream_loop -1` cycle
+   * starts with a brief blackout so iOS Home users can tell they're seeing
+   * the same event repeating rather than a live continuous feed.
+   *
+   * The slate is shipped pre-rendered as `assets/loop-slate.mp4` (1280×720)
+   * and resized at runtime via `scale2ref` to match the source clip's
+   * native dimensions, so a 4:3 800×600 OnlyCat clip ends up with an
+   * 800×600 slate — no letterboxing shrinks the actual cat-flap content.
+   */
+  private async buildAugmentedClip(
+    input: string,
+    output: string,
+  ): Promise<void> {
+    const args = [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      SLATE_PATH,
+      "-i",
+      input,
+      "-filter_complex",
+      // scale2ref resizes the slate (input 0) to match the source clip
+      // (input 1)'s pixel dimensions. We then force SAR=1:1 on both legs
+      // so concat doesn't bail on a sample-aspect mismatch (OnlyCat clips
+      // are encoded as 800×600 SAR 4:3, the slate as SAR 1:1) and pin
+      // pix_fmt to yuv420p for the same reason.
+      "[0:v][1:v]scale2ref[slate0][ev0];" +
+        "[slate0]setsar=1,format=yuv420p[slate];" +
+        "[ev0]setsar=1,format=yuv420p[ev];" +
+        "[slate][ev]concat=n=2:v=1[v]",
+      "-map",
+      "[v]",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
+      "-pix_fmt",
+      "yuv420p",
+      output,
+    ];
+
+    const spawner = this.spawner ?? (spawn as unknown as Spawner);
+    await new Promise<void>((resolve, reject) => {
+      const child = spawner(this.ffmpegPath, args, {
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      let stderr = "";
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      child.on("error", reject);
+      child.on("exit", (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          const tail = stderr.trim().split(/\r?\n/).slice(-3).join(" | ");
+          reject(new Error(`augmentation ffmpeg exit ${code}: ${tail}`));
+        }
+      });
+    });
   }
 
   private buildSourceUrl(event: { deviceId: string; eventId: number; accessToken?: string }): string {

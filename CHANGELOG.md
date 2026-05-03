@@ -2,6 +2,16 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.26]
+
+### Added
+
+- **Loop divider on the live view.** The live tile replays the cached event clip on `-stream_loop -1`, which previously looked like a continuous live feed — users couldn't tell they were watching the same flap event over and over. We now prepend a 1-second black slate to the cached clip before streaming, so each loop iteration starts with a brief darkening that makes the boundary obvious.
+  - Slate is shipped pre-rendered as `assets/loop-slate.mp4` (1280×720) and resized at runtime via `scale2ref` to match the source clip's native dimensions, so 4:3 OnlyCat clips stay 4:3 — no letterboxing shrinks the actual cat-flap content.
+  - SAR is normalised to 1:1 on both legs of the concat (`setsar=1`); without that, ffmpeg 8 rejects the concat because OnlyCat clips encode as 800×600 SAR 4:3 but the slate is SAR 1:1.
+  - New config option `loopSlate` (default `true`) toggles the divider. Set to `false` for a seamless loop.
+  - On augmentation failure, the plugin falls back to streaming the raw clip without the divider so live view never breaks just because the slate-build pass had a hiccup.
+
 ## [0.2.25]
 
 ### Fixed

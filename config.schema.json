@@ -47,6 +47,12 @@
         "default": false,
         "description": "Suppress the camera and HomeKit Secure Video on each flap. Sensors, lock, and switches still appear, but as separate tiles in the Home app. Leave off unless you specifically don't want camera support."
       },
+      "loopSlate": {
+        "title": "Show divider between live-view replay loops",
+        "type": "boolean",
+        "default": true,
+        "description": "Live view replays the most recent cat-flap event clip continuously. With this on, a brief black slate plays between iterations so it's clear you're seeing the same event repeating, not a continuous live feed. Turn off for a seamless loop."
+      },
       "replayHistoryOnStartup": {
         "title": "Replay event history on startup (days)",
         "type": "integer",

@@ -55,6 +55,8 @@ export interface FlapAccessoryDeps {
   unlockPolicyName?: string;
   /** Name of the OnlyCat policy to activate when HomeKit locks the flap. */
   lockPolicyName?: string;
+  /** Prepend a 1-second black slate to live-view loops. Default true. */
+  loopSlate?: boolean;
 }
 
 interface InProgressEvent {
@@ -151,7 +153,7 @@ export class FlapAccessory {
     );
 
     if (deps.disableCamera !== true) {
-      this.attachCamera(deps.ffmpegPath);
+      this.attachCamera(deps.ffmpegPath, deps.loopSlate);
     }
 
     this.client.on("deviceEventUpdate", this.onEventUpdate);
@@ -159,7 +161,7 @@ export class FlapAccessory {
     this.client.on("eventSummaryUpdate", this.onSummaryUpdate);
   }
 
-  private attachCamera(ffmpegPath?: string): void {
+  private attachCamera(ffmpegPath?: string, loopSlate?: boolean): void {
     const hap = this.api.hap as unknown as {
       CameraController?: new (options: unknown) => unknown;
     };
@@ -170,6 +172,8 @@ export class FlapAccessory {
       deviceId: this.device.deviceId,
       eventCache: this.eventCache,
       ffmpegPath,
+      // Default ON. Users who prefer seamless loops set loopSlate: false.
+      loopSlate: loopSlate !== false,
     });
     this.recordingDelegate = new OnlyCatRecordingDelegate({
       log: this.log,

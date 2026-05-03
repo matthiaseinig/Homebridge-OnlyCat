@@ -19,6 +19,27 @@ function fakeChild(): FakeChild {
   return c;
 }
 
+/**
+ * Spawner that returns a fresh child per call. The augmentation ffmpeg
+ * (input includes `loop-slate.mp4`) auto-emits exit 0 on the next tick
+ * so its Promise resolves and the streaming ffmpeg gets spawned next.
+ * The streaming child is left running for the test to inspect.
+ */
+function makeSpawner(streamChild: FakeChild) {
+  const spawner = vi.fn((_cmd: string, args: string[]) => {
+    const isAugmentation = args.some(
+      (a) => typeof a === "string" && a.includes("loop-slate.mp4"),
+    );
+    if (isAugmentation) {
+      const child = fakeChild();
+      setImmediate(() => child.emit("exit", 0, null));
+      return child as never;
+    }
+    return streamChild as never;
+  });
+  return spawner;
+}
+
 function makeApi() {
   return {
     hap: {
@@ -282,7 +303,7 @@ describe("OnlyCatStreamingDelegate", () => {
       posterFrameIndex: 0,
     });
     const child = fakeChild();
-    const spawner = vi.fn(() => child as never);
+    const spawner = makeSpawner(child);
     const delegate = new OnlyCatStreamingDelegate({
       api: makeApi(),
       log: createMockLogger(),
@@ -296,8 +317,15 @@ describe("OnlyCatStreamingDelegate", () => {
       delegate.handleStreamRequest(startRequest() as never, vi.fn());
       await flushAsync();
 
+      // The augmentation pass spawns first (input is the shipped slate),
+      // then the streaming pass. We check the streaming pass — it's the
+      // call that has the `-re` flag.
       expect(spawner).toHaveBeenCalled();
-      const [, args] = spawner.mock.calls[0]!;
+      const streamingCall = spawner.mock.calls.find((call) =>
+        (call[1] as string[]).includes("-re"),
+      );
+      expect(streamingCall).toBeDefined();
+      const args = streamingCall![1] as string[];
       expect(args).toContain("-i");
       expect(
         args.some((a: string) => a.endsWith("onlycat-d-11.mp4")),
@@ -364,7 +392,7 @@ describe("OnlyCatStreamingDelegate", () => {
       deviceId: "d",
       eventCache: cache,
       portAllocator: async () => 7000,
-      spawner: ((..._a: unknown[]) => child) as never,
+      spawner: makeSpawner(child) as never,
     });
     try {
       await delegate.prepareStream(prepareRequest() as never, vi.fn());
@@ -378,6 +406,60 @@ describe("OnlyCatStreamingDelegate", () => {
       );
       expect(child.kill).toHaveBeenCalledWith("SIGINT");
       expect(cb).toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("falls back to the raw clip when slate augmentation ffmpeg fails", async () => {
+    const restore = mockFetchOk();
+    const log = createMockLogger();
+    const cache = new EventCache();
+    cache.apply({ deviceId: "d", eventId: 5, accessToken: "tok" });
+    const streamChild = fakeChild();
+    // Spawner where the augmentation child exits with a non-zero code,
+    // forcing the fallback to the raw temp file.
+    const spawner = vi.fn((_cmd: string, args: string[]) => {
+      const isAugmentation = args.some(
+        (a) => typeof a === "string" && a.includes("loop-slate.mp4"),
+      );
+      if (isAugmentation) {
+        const child = fakeChild();
+        setImmediate(() => child.emit("exit", 1, null));
+        return child as never;
+      }
+      return streamChild as never;
+    });
+    const delegate = new OnlyCatStreamingDelegate({
+      api: makeApi(),
+      log,
+      deviceId: "d",
+      eventCache: cache,
+      portAllocator: async () => 7000,
+      spawner: spawner as never,
+    });
+    try {
+      await delegate.prepareStream(prepareRequest() as never, vi.fn());
+      delegate.handleStreamRequest(startRequest() as never, vi.fn());
+      await new Promise((r) => setTimeout(r, 50));
+
+      // The plugin should still spawn the streaming ffmpeg even though the
+      // augmentation pass failed.
+      const streamingCall = spawner.mock.calls.find((call) =>
+        (call[1] as string[]).includes("-re"),
+      );
+      expect(streamingCall).toBeDefined();
+      // Streaming pipeline should be pointed at the *raw* temp file
+      // (suffix "-raw.mp4"), not the augmented one.
+      const args = streamingCall![1] as string[];
+      expect(
+        args.some((a: string) => a.endsWith("-raw.mp4")),
+      ).toBe(true);
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Could not build loop slate"),
+        "d",
+        expect.stringContaining("ffmpeg exit"),
+      );
     } finally {
       restore();
     }

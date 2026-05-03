@@ -30,6 +30,12 @@ export interface OnlyCatPlatformConfig extends PlatformConfig {
   /** Name of the OnlyCat policy to activate when HomeKit locks the flap. */
   lockPolicyName?: string;
   /**
+   * Prepend a 1-second black slate to the cached event clip when streaming
+   * the live view, so each `-stream_loop -1` cycle has a visible boundary.
+   * Defaults to true. Set to false for a seamless loop.
+   */
+  loopSlate?: boolean;
+  /**
    * On startup, replay events from the last N days through HKSV. 0 disables.
    * HomeKit will timestamp replayed clips at the moment of playback, not the
    * original event time — Apple's HKSV API does not expose a backdate primitive.
@@ -373,6 +379,7 @@ export class OnlyCatPlatform implements DynamicPlatformPlugin {
       disableCamera: this.config.disableCamera,
       unlockPolicyName: this.config.unlockPolicyName,
       lockPolicyName: this.config.lockPolicyName,
+      loopSlate: this.config.loopSlate,
     });
     this.flaps.set(record.deviceId, flap);
 
