@@ -267,6 +267,9 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "-i",
       tempFile,
       "-an",
+      // Encoder pipeline mirrors homebridge-camera-ffmpeg's known-good
+      // HKSV setup. -tune zerolatency implies bf=0, repeat-headers=1, and
+      // a tight GOP — no need for -bsf, -g, or -bf overrides on top of it.
       "-c:v",
       "libx264",
       "-profile:v",
@@ -281,35 +284,20 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
       "yuv420p",
       "-color_range",
       "mpeg",
-      "-bf",
-      "0",
-      // Repeat SPS/PPS NAL units in-band with every keyframe. iOS HKSV
-      // resyncs its decoder on each I-frame and silently drops the stream
-      // if the parameter sets aren't there — that matches the symptom we
-      // were chasing (894 KiB of perfectly-encoded H.264 sent to iOS, iOS
-      // rendering nothing, ffmpeg killed by SIGINT after iOS gave up).
-      "-bsf:v",
-      "dump_extra=freq=keyframe",
-      // Scale to iOS's requested dimensions, preserving aspect via padding.
+      // Plain stretch to iOS's requested dimensions — no aspect-ratio
+      // padding. iOS HKSV decoders sometimes choke on padded streams.
       "-vf",
-      `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`,
+      `scale=${targetWidth}:${targetHeight}`,
       "-r",
       String(targetFps),
-      "-g",
-      String(Math.max(2, targetFps * 2)),
-      // CRF (constant rate factor) for quality-targeted encoding. At iOS's
-      // common 299 kbps cap on 1280×720 @ 30 fps, CBR forces libx264 to
-      // QP 33+ — the resulting frames are so degraded that iOS's HKSV
-      // decoder rejects the stream silently. CRF 23 produces good quality
-      // and stays comfortably under iOS's ceiling for low-motion cat-flap
-      // content. -maxrate keeps brief peaks bounded; large -bufsize lets
-      // the encoder smooth bursts across keyframes.
-      "-crf",
-      "23",
+      // CBR at iOS's requested ceiling. Buffer = 2× target is the
+      // homebridge-camera-ffmpeg convention.
+      "-b:v",
+      `${targetBitrate}k`,
       "-maxrate",
-      `${targetBitrate * 2}k`,
+      `${targetBitrate}k`,
       "-bufsize",
-      `${targetBitrate * 4}k`,
+      `${targetBitrate * 2}k`,
       "-f",
       "rtp",
       "-payload_type",

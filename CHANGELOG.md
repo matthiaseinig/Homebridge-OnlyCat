@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.23]
+
+### Changed
+
+- **Live-stream ffmpeg pipeline simplified to mirror `homebridge-camera-ffmpeg`'s known-good HKSV setup.** Across all environments (Mac native, Docker container) we kept seeing ~1 MB of valid H.264 reach iOS with nothing rendered. The cumulative tweaks in 0.2.20–0.2.22 (bsf dump_extra, aspect padding, CRF mode, manual -bf/-g) had drifted from the canonical pattern. Switched back to: plain `-vf scale=W:H`, no bsf, no manual -bf/-g/-pad, plain CBR matching iOS's requested bit-rate, `-tune zerolatency` carrying its implicit bf=0 + repeat-headers. Net effect: minimal pipeline that exactly matches what known-working HKSV plugins emit.
+
 ## [0.2.22]
 
 ### Fixed
