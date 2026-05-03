@@ -59,7 +59,7 @@
         "default": 0,
         "minimum": 0,
         "maximum": 30,
-        "description": "When > 0, fetch events from the last N days on plugin startup and push them through HomeKit Secure Video. The clip content is correct, but HomeKit will timestamp these recordings at the moment of replay, not the original event time — that's an Apple HKSV API limitation we can't bypass. Leave at 0 for fresh-from-install behaviour."
+        "description": "When > 0, fetch events from the last N days on plugin startup and push them through HomeKit Secure Video. The clip content is correct, but HomeKit will timestamp these recordings at the moment of replay, not the original event time - that's an Apple HKSV API limitation we can't bypass. Leave at 0 for fresh-from-install behaviour."
       }
     }
   }

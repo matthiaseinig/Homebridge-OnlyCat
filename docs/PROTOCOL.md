@@ -1,13 +1,13 @@
 # OnlyCat wire protocol
 
-This is what we know about the OnlyCat Socket.IO API based on observation of the official integrations. The protocol is undocumented and may change without notice — this file is a living reference, not a contract.
+This is what we know about the OnlyCat Socket.IO API based on observation of the official integrations. The protocol is undocumented and may change without notice - this file is a living reference, not a contract.
 
 ## Connection
 
 - **Transport:** Socket.IO v4 over WebSocket (TLS only)
 - **Endpoint:** `wss://gateway.onlycat.com`
 - **Namespace:** `/`
-- **Auth:** token in handshake `auth` payload — `{ token: "..." }`
+- **Auth:** token in handshake `auth` payload - `{ token: "..." }`
 - **Headers:** `platform: homebridge`, `device: homebridge-onlycat`
 - **Reconnect:** infinite, ~10s delay between attempts
 
@@ -35,7 +35,7 @@ Each is a Socket.IO ack-style call: `socket.emitWithAck(name, args)` and we awai
 
 | Event | When | Payload |
 |---|---|---|
-| `connect` | After successful handshake (incl. reconnect) | — |
+| `connect` | After successful handshake (incl. reconnect) | - |
 | `userUpdate` | User identity changed (treat as "re-subscribe everything") | user record |
 | `deviceUpdate` | Device state changed (policy, connectivity, settings) | `{ deviceId, type, body }` |
 | `deviceEventUpdate` | A new flap event started | partial `Event` (no `frameCount`) |
@@ -87,7 +87,7 @@ The canonical interpretation of an event, computed server-side. Subscribe with `
 
 ## Media URLs
 
-- **Thumbnail (per frame):** `https://gateway.onlycat.com/events/{deviceId}/{eventId}/{frameIndex}` — JPEG
+- **Thumbnail (per frame):** `https://gateway.onlycat.com/events/{deviceId}/{eventId}/{frameIndex}` - JPEG
 - **Video (HLS playlist):** `https://gateway.onlycat.com/sharing/video/{deviceId}/{eventId}?t={accessToken}`
 
-There is **no continuous live stream** — only per-event clips. This shapes how the camera surface is modelled (see [`ARCHITECTURE.md`](ARCHITECTURE.md)).
+There is **no continuous live stream** - only per-event clips. This shapes how the camera surface is modelled (see [`ARCHITECTURE.md`](ARCHITECTURE.md)).

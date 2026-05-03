@@ -2,6 +2,20 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1]
+
+### Added
+
+- End-to-end pairing walkthrough at [`docs/getting-started.md`](docs/getting-started.md), with annotated screenshots of every step from "Add to Home" through to the populated camera tile.
+- Hero screenshots in `README.md` showing the camera tile and the grouped accessory tile so visitors immediately see what the plugin does.
+- Sections in `README.md` covering automation triggers (per-cat occupancy, contraband, breach, blocked, online) and the two-profile door-policy lock pattern.
+- Homebridge UI settings screenshot in `README.md` and `docs/getting-started.md`.
+
+### Changed
+
+- Em-dashes removed from all user-facing docs in favour of plain ASCII punctuation.
+- README config table now lists every supported field including `loopSlate`, `disableCamera`, `unlockPolicyName`, `lockPolicyName`, and `ffmpegPath`.
+
 ## [1.0.0]
 
 First stable release.
@@ -22,8 +36,8 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Added
 
-- **Loop divider on the live view.** The live tile replays the cached event clip on `-stream_loop -1`, which previously looked like a continuous live feed — users couldn't tell they were watching the same flap event over and over. We now prepend a 1-second black slate to the cached clip before streaming, so each loop iteration starts with a brief darkening that makes the boundary obvious.
-  - Slate is shipped pre-rendered as `assets/loop-slate.mp4` (1280×720) and resized at runtime via `scale2ref` to match the source clip's native dimensions, so 4:3 OnlyCat clips stay 4:3 — no letterboxing shrinks the actual cat-flap content.
+- **Loop divider on the live view.** The live tile replays the cached event clip on `-stream_loop -1`, which previously looked like a continuous live feed - users couldn't tell they were watching the same flap event over and over. We now prepend a 1-second black slate to the cached clip before streaming, so each loop iteration starts with a brief darkening that makes the boundary obvious.
+  - Slate is shipped pre-rendered as `assets/loop-slate.mp4` (1280×720) and resized at runtime via `scale2ref` to match the source clip's native dimensions, so 4:3 OnlyCat clips stay 4:3 - no letterboxing shrinks the actual cat-flap content.
   - SAR is normalised to 1:1 on both legs of the concat (`setsar=1`); without that, ffmpeg 8 rejects the concat because OnlyCat clips encode as 800×600 SAR 4:3 but the slate is SAR 1:1.
   - New config option `loopSlate` (default `true`) toggles the divider. Set to `false` for a seamless loop.
   - On augmentation failure, the plugin falls back to streaming the raw clip without the divider so live view never breaks just because the slate-build pass had a hiccup.
@@ -32,19 +46,19 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **Live view actually plays.** After 0.2.5–0.2.24 each tried a different theory (HLS demuxer flags, profile/level pinning, MP4 download, SSRC int32 cast, synthesised AAC-ELD audio) and each ended with the same symptom — ~1 MB of valid H.264 reaching iOS over ~26 s, then session timeout — we ran a side-by-side dev test against `homebridge-camera-ffmpeg` 3.1.4 with a `lavfi testsrc` input. That rendered immediately on the same Mac + same iOS Home + same network. Capturing camera-ffmpeg's exact ffmpeg invocation revealed our pipeline had drifted in five compounding ways:
+- **Live view actually plays.** After 0.2.5–0.2.24 each tried a different theory (HLS demuxer flags, profile/level pinning, MP4 download, SSRC int32 cast, synthesised AAC-ELD audio) and each ended with the same symptom - ~1 MB of valid H.264 reaching iOS over ~26 s, then session timeout - we ran a side-by-side dev test against `homebridge-camera-ffmpeg` 3.1.4 with a `lavfi testsrc` input. That rendered immediately on the same Mac + same iOS Home + same network. Capturing camera-ffmpeg's exact ffmpeg invocation revealed our pipeline had drifted in five compounding ways:
 
-  1. Synthesised AAC-ELD audio output (added in 0.2.24) — camera-ffmpeg uses `-an -sn -dn` and works.
-  2. `-profile:v` and `-level:v` pinned to iOS's `StartStreamRequest` values — camera-ffmpeg doesn't pin them; libx264 emits H.264 high and iOS accepts it.
-  3. `-maxrate` and `-bufsize` on top of `-b:v` — camera-ffmpeg uses just `-b:v 299k`.
-  4. Plain stretch `scale=W:H` filter — camera-ffmpeg uses `scale='min(W,iw)':'min(H,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`.
-  5. `-ssrc video.ssrc | 0` (bit-cast of iOS's echo) — camera-ffmpeg uses the SSRC it generated itself in `prepareStream`. iOS doesn't actually require us to use the value it echoes; the safer pattern is to drive ffmpeg from the value we own.
+  1. Synthesised AAC-ELD audio output (added in 0.2.24) - camera-ffmpeg uses `-an -sn -dn` and works.
+  2. `-profile:v` and `-level:v` pinned to iOS's `StartStreamRequest` values - camera-ffmpeg doesn't pin them; libx264 emits H.264 high and iOS accepts it.
+  3. `-maxrate` and `-bufsize` on top of `-b:v` - camera-ffmpeg uses just `-b:v 299k`.
+  4. Plain stretch `scale=W:H` filter - camera-ffmpeg uses `scale='min(W,iw)':'min(H,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`.
+  5. `-ssrc video.ssrc | 0` (bit-cast of iOS's echo) - camera-ffmpeg uses the SSRC it generated itself in `prepareStream`. iOS doesn't actually require us to use the value it echoes; the safer pattern is to drive ffmpeg from the value we own.
 
   Pipeline rewritten to mirror camera-ffmpeg's known-good HKSV setup verbatim. `defaultStreamingOptions()` declares an empty audio codec list (skipping the audio session entirely). Stream confirmed end-to-end: iOS Home renders the cached event clip on loop within milliseconds of opening the tile.
 
 ### Removed
 
-- All AAC-ELD audio synthesis added in 0.2.24 — it wasn't the missing piece, and removing it simplifies the pipeline.
+- All AAC-ELD audio synthesis added in 0.2.24 - it wasn't the missing piece, and removing it simplifies the pipeline.
 
 ## [0.2.24]
 
@@ -66,7 +80,7 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **Encoder switched from CBR to CRF.** At iOS's typical 299 kbps cap on 1280×720 @ 30 fps, libx264 in CBR mode was forced to QP 33+ — the resulting frames were so degraded that iOS HKSV's decoder rejected the stream silently. CRF 23 (constant *quality*) produces good-looking frames at whatever bitrate the content needs, with `-maxrate` and a generous buffer keeping peaks bounded under iOS's ceiling.
+- **Encoder switched from CBR to CRF.** At iOS's typical 299 kbps cap on 1280×720 @ 30 fps, libx264 in CBR mode was forced to QP 33+ - the resulting frames were so degraded that iOS HKSV's decoder rejected the stream silently. CRF 23 (constant *quality*) produces good-looking frames at whatever bitrate the content needs, with `-maxrate` and a generous buffer keeping peaks bounded under iOS's ceiling.
 
 ## [0.2.21]
 
@@ -82,7 +96,7 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **Live view: SSRC overflow blocking ffmpeg from ever writing the RTP header.** iOS sends an unsigned 32-bit SSRC (range 0–4294967295) but ffmpeg parses `-ssrc` as a signed int32 (max 2147483647). When iOS picked an SSRC above 2^31 (about half the time), ffmpeg refused with `Value … for parameter 'ssrc' out of range` and the stream never started — for everything earlier we just saw "exit 255 / no stderr". Now `video.ssrc | 0` casts to signed int32 with the same wire bits; iOS reinterprets as unsigned and the session opens cleanly.
+- **Live view: SSRC overflow blocking ffmpeg from ever writing the RTP header.** iOS sends an unsigned 32-bit SSRC (range 0–4294967295) but ffmpeg parses `-ssrc` as a signed int32 (max 2147483647). When iOS picked an SSRC above 2^31 (about half the time), ffmpeg refused with `Value … for parameter 'ssrc' out of range` and the stream never started - for everything earlier we just saw "exit 255 / no stderr". Now `video.ssrc | 0` casts to signed int32 with the same wire bits; iOS reinterprets as unsigned and the session opens cleanly.
 - **Live view's H.264 profile + level now match iOS's request, and SPS/PPS are repeated in-band.** The plugin was hardcoding Baseline 3.1 regardless of what iOS asked for in `StartStreamRequest.video.profile` / `.level`, and ffmpeg's RTP muxer sends SPS/PPS only once at stream start. iOS HKSV's decoder resyncs on every I-frame and silently drops the session if the parameter sets aren't present. Now we transcode to whichever profile/level iOS picked and add `-bsf:v dump_extra=freq=keyframe` so SPS/PPS travel with every keyframe.
 
 ### Changed
@@ -95,19 +109,19 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **GitHub installs now build `dist/` automatically.** The package was missing an npm `prepare` script, so `npm install github:matthiaseinig/Homebridge-OnlyCat#vX.Y.Z` copied the TypeScript sources but never compiled them. Homebridge then couldn't load the plugin (entry point `dist/index.js` did not exist). The `prepare` lifecycle script now runs `tsc` during install — npm temporarily pulls the dev-dependency toolchain, compiles, then cleans the devDeps out, leaving only the runtime tree.
+- **GitHub installs now build `dist/` automatically.** The package was missing an npm `prepare` script, so `npm install github:matthiaseinig/Homebridge-OnlyCat#vX.Y.Z` copied the TypeScript sources but never compiled them. Homebridge then couldn't load the plugin (entry point `dist/index.js` did not exist). The `prepare` lifecycle script now runs `tsc` during install - npm temporarily pulls the dev-dependency toolchain, compiles, then cleans the devDeps out, leaving only the runtime tree.
 
 ## [0.2.18]
 
 ### Changed
 
-- `ffmpeg-for-homebridge` moved from `dependencies` to `optionalDependencies`. If the binary download fails on an unusual architecture or behind a restrictive corporate proxy, `npm install` still succeeds — the plugin then falls back to the system `ffmpeg` on `PATH`, which `resolveFfmpegPath()` already handled. The happy path (Homebridge OS image, Pi, NAS Docker) gets the bundled binary as before.
+- `ffmpeg-for-homebridge` moved from `dependencies` to `optionalDependencies`. If the binary download fails on an unusual architecture or behind a restrictive corporate proxy, `npm install` still succeeds - the plugin then falls back to the system `ffmpeg` on `PATH`, which `resolveFfmpegPath()` already handled. The happy path (Homebridge OS image, Pi, NAS Docker) gets the bundled binary as before.
 
 ## [0.2.17]
 
 ### Added
 
-- **ffmpeg now ships with the plugin.** `ffmpeg-for-homebridge` is a runtime dependency, so installing `homebridge-onlycat` automatically pulls a prebuilt ffmpeg binary (with libx264 + libfdk_aac) for the host platform — Linux x64/ARM, macOS x64/ARM, Windows. No more "apt-get install ffmpeg" friction on the official Homebridge OS image where the homebridge service account can't sudo. The plugin still respects `config.ffmpegPath` for users who prefer their own build, and falls back to the system `ffmpeg` on PATH if the bundled binary isn't available.
+- **ffmpeg now ships with the plugin.** `ffmpeg-for-homebridge` is a runtime dependency, so installing `homebridge-onlycat` automatically pulls a prebuilt ffmpeg binary (with libx264 + libfdk_aac) for the host platform - Linux x64/ARM, macOS x64/ARM, Windows. No more "apt-get install ffmpeg" friction on the official Homebridge OS image where the homebridge service account can't sudo. The plugin still respects `config.ffmpegPath` for users who prefer their own build, and falls back to the system `ffmpeg` on PATH if the bundled binary isn't available.
 
 ## [0.2.16]
 
@@ -142,19 +156,19 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **Live view actually shows video.** OnlyCat's MP4 endpoint doesn't honour HTTP Range requests, so ffmpeg's `-stream_loop -1` couldn't seek back to byte 0 after the first iteration — every loop attempt died with `Stream ends prematurely at 2654, should be 1536248` and iOS gave up. We now download the event MP4 to a temp file once on each live-stream request, point ffmpeg at the local file (which supports seek-back natively), and clean the file up when the session ends.
+- **Live view actually shows video.** OnlyCat's MP4 endpoint doesn't honour HTTP Range requests, so ffmpeg's `-stream_loop -1` couldn't seek back to byte 0 after the first iteration - every loop attempt died with `Stream ends prematurely at 2654, should be 1536248` and iOS gave up. We now download the event MP4 to a temp file once on each live-stream request, point ffmpeg at the local file (which supports seek-back natively), and clean the file up when the session ends.
 
 ## [0.2.12]
 
 ### Fixed
 
-- **HomeKit Lock state now honours `unlockPolicyName` / `lockPolicyName` instead of `idleLock`.** Real OnlyCat policies for cat-flap use cases very often have `idleLock=true` even for the policy you'd consider "unlocked" — the flap is *per-cat* unlocked after RFID detection rather than *idle*-unlocked. With our previous heuristic the lock UI never moved: activating "without Alarm" (idleLock=true) immediately re-rendered as Locked. We now derive the HomeKit Lock state from the active policy's *name* whenever the user has configured `unlockPolicyName` or `lockPolicyName`. The `idleLock` heuristic remains the fallback when no name is configured.
+- **HomeKit Lock state now honours `unlockPolicyName` / `lockPolicyName` instead of `idleLock`.** Real OnlyCat policies for cat-flap use cases very often have `idleLock=true` even for the policy you'd consider "unlocked" - the flap is *per-cat* unlocked after RFID detection rather than *idle*-unlocked. With our previous heuristic the lock UI never moved: activating "without Alarm" (idleLock=true) immediately re-rendered as Locked. We now derive the HomeKit Lock state from the active policy's *name* whenever the user has configured `unlockPolicyName` or `lockPolicyName`. The `idleLock` heuristic remains the fallback when no name is configured.
 
 ## [0.2.11]
 
 ### Fixed
 
-- **Live RTP feed now reaches iOS.** The RTP/SRTP output URL was missing `rtcpport=`, so ffmpeg defaulted to sending RTCP on `videoPort + 1`. iOS HKSV multiplexes RTP and RTCP on the same port, doesn't listen on `+1`, and tore the session down before any video frames flowed — surfacing as `Stream ends prematurely` from ffmpeg's HTTPS demuxer when iOS killed the pipe. URL now passes `rtcpport={videoPort}`.
+- **Live RTP feed now reaches iOS.** The RTP/SRTP output URL was missing `rtcpport=`, so ffmpeg defaulted to sending RTCP on `videoPort + 1`. iOS HKSV multiplexes RTP and RTCP on the same port, doesn't listen on `+1`, and tore the session down before any video frames flowed - surfacing as `Stream ends prematurely` from ffmpeg's HTTPS demuxer when iOS killed the pipe. URL now passes `rtcpport={videoPort}`.
 
 ### Added
 
@@ -165,27 +179,27 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **SRTP output now opens.** ffmpeg was rejecting the live-stream output URL with `Error opening output srtp://...: Invalid argument` because `-srtp_out_params` was being passed `base64(key) || base64(salt)` (two encoded strings concatenated). ffmpeg expects `base64(key || salt)` — concatenate the binary buffers first, then base64-encode once. Live view should now actually deliver video to iOS.
+- **SRTP output now opens.** ffmpeg was rejecting the live-stream output URL with `Error opening output srtp://...: Invalid argument` because `-srtp_out_params` was being passed `base64(key) || base64(salt)` (two encoded strings concatenated). ffmpeg expects `base64(key || salt)` - concatenate the binary buffers first, then base64-encode once. Live view should now actually deliver video to iOS.
 
 ## [0.2.9]
 
 ### Fixed
 
-- **Live view actually plays now.** ffmpeg 8.x removed the `-live_start_index` option, which we were passing to both the streaming and HKSV recording pipelines. Every ffmpeg invocation died at parse time with `Option not found`, leaving iOS Home stuck on a spinner over the snapshot. The flag was redundant for OnlyCat's VOD-style HLS (segment 0 is the default) — removed from both pipelines.
+- **Live view actually plays now.** ffmpeg 8.x removed the `-live_start_index` option, which we were passing to both the streaming and HKSV recording pipelines. Every ffmpeg invocation died at parse time with `Option not found`, leaving iOS Home stuck on a spinner over the snapshot. The flag was redundant for OnlyCat's VOD-style HLS (segment 0 is the default) - removed from both pipelines.
 - ffmpeg's last 12 stderr lines are now logged at `warn` level on a non-zero exit, so future ffmpeg failures surface immediately instead of being buried at debug.
 
 ## [0.2.8]
 
 ### Fixed
 
-- **Camera live view no longer crashes the bridge.** When iOS opened the camera, `prepareStream` returned only a `video` block. HAP-NodeJS validated the response and threw `Audio was enabled but not supplied in PrepareStreamResponse!`, which caused our error path to invoke the once-only callback a second time, killing the whole Homebridge process. v0.2.8 declares AAC-ELD support in the streaming options, allocates an audio port, and returns a valid `audio` block in the prepare response (ffmpeg still emits no audio packets — the audio RTP session is established but quiet). The error path is also guarded so any HAP synchronous rejection is logged at debug rather than crashing.
+- **Camera live view no longer crashes the bridge.** When iOS opened the camera, `prepareStream` returned only a `video` block. HAP-NodeJS validated the response and threw `Audio was enabled but not supplied in PrepareStreamResponse!`, which caused our error path to invoke the once-only callback a second time, killing the whole Homebridge process. v0.2.8 declares AAC-ELD support in the streaming options, allocates an audio port, and returns a valid `audio` block in the prepare response (ffmpeg still emits no audio packets - the audio RTP session is established but quiet). The error path is also guarded so any HAP synchronous rejection is logged at debug rather than crashing.
 
 ## [0.2.7]
 
 ### Fixed
 
 - **Live view shows the most recent event continuously.** OnlyCat clips are short (5–10 s); once ffmpeg reached the end iOS Home saw the stream end and stayed on the snapshot. Live streaming now passes `-stream_loop -1` so the latest event plays on repeat for as long as the user has the camera open. Each new live-view session re-reads the cache, so the most recent event is what loops.
-- **Reinstated `ConfiguredName` with a write interceptor.** iOS Home's Camera Details pairing dialog writes generic labels back into `ConfiguredName`. We re-add the characteristic with our descriptive value and an `onSet` handler that swallows the iOS write — the label sticks across pairing and survives the dialog. The plugin is now in charge of service names; the user does not need to type them in during pairing.
+- **Reinstated `ConfiguredName` with a write interceptor.** iOS Home's Camera Details pairing dialog writes generic labels back into `ConfiguredName`. We re-add the characteristic with our descriptive value and an `onSet` handler that swallows the iOS write - the label sticks across pairing and survives the dialog. The plugin is now in charge of service names; the user does not need to type them in during pairing.
 - Service-naming logic is centralised in a single `applyServiceName` helper used by both flap and cat-presence accessories.
 
 ## [0.2.6]
@@ -199,16 +213,16 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Fixed
 
-- **Live view now plays the event clip from the start.** ffmpeg's HLS demuxer defaults to `-live_start_index -3` (start ~3 segments from the end), which for a finished cat-flap clip meant we were sending only the last second or two — sometimes nothing at all. We now force `-live_start_index 0` and add `-re` for native frame-rate pacing so iOS sees a smooth stream of the whole event.
-- **HKSV recording pipeline produces fragments with a silent audio track.** Our `defaultRecordingOptions` declared AAC-LC support, but ffmpeg was outputting video-only (`-an`). Some iOS HKSV implementations reject fragments whose track set doesn't match the declared codec list — that's the most likely reason recordings never landed in the Home timeline. We now synthesise an infinite silent mono AAC source via `anullsrc`, mux it alongside the copied H.264 video, and use `-shortest` so output ends with the (finite) HLS clip.
+- **Live view now plays the event clip from the start.** ffmpeg's HLS demuxer defaults to `-live_start_index -3` (start ~3 segments from the end), which for a finished cat-flap clip meant we were sending only the last second or two - sometimes nothing at all. We now force `-live_start_index 0` and add `-re` for native frame-rate pacing so iOS sees a smooth stream of the whole event.
+- **HKSV recording pipeline produces fragments with a silent audio track.** Our `defaultRecordingOptions` declared AAC-LC support, but ffmpeg was outputting video-only (`-an`). Some iOS HKSV implementations reject fragments whose track set doesn't match the declared codec list - that's the most likely reason recordings never landed in the Home timeline. We now synthesise an infinite silent mono AAC source via `anullsrc`, mux it alongside the copied H.264 video, and use `-shortest` so output ends with the (finite) HLS clip.
 
 ## [0.2.4]
 
 ### Fixed
 
-- **Plugin now subscribes to live event pushes.** The previous releases only called `getDevice { subscribe: true }` after discovery, but never `getDeviceEvents { subscribe: true }`. The OnlyCat gateway therefore stopped delivering `deviceEventUpdate` and `eventUpdate` pushes — events fired in the OnlyCat app would not reach the plugin. As a result the camera tile reported "no event clip available" on every live-view request and HKSV had nothing to record. We now subscribe on startup and re-subscribe on every reconnect.
+- **Plugin now subscribes to live event pushes.** The previous releases only called `getDevice { subscribe: true }` after discovery, but never `getDeviceEvents { subscribe: true }`. The OnlyCat gateway therefore stopped delivering `deviceEventUpdate` and `eventUpdate` pushes - events fired in the OnlyCat app would not reach the plugin. As a result the camera tile reported "no event clip available" on every live-view request and HKSV had nothing to record. We now subscribe on startup and re-subscribe on every reconnect.
 - **Snapshot pre-population.** The most recent concluded event from `getDeviceEvents` is fed into the event cache on startup, so the camera tile shows the latest poster frame immediately rather than waiting for the next live event.
-- **Service names appear in the Home app again.** Restored `ConfiguredName` (removed in 0.2.3) on every service. iOS Home reads `ConfiguredName` over `Name` for service tiles in newer versions, so the previous removal made every service show up as the generic type label ("Motion Sensor", "Occupancy Sensor 2", "Switch"). HAP-NodeJS still logs a cosmetic warning when adding `ConfiguredName` to services that don't list it as required/optional — the characteristic is exposed correctly regardless.
+- **Service names appear in the Home app again.** Restored `ConfiguredName` (removed in 0.2.3) on every service. iOS Home reads `ConfiguredName` over `Name` for service tiles in newer versions, so the previous removal made every service show up as the generic type label ("Motion Sensor", "Occupancy Sensor 2", "Switch"). HAP-NodeJS still logs a cosmetic warning when adding `ConfiguredName` to services that don't list it as required/optional - the characteristic is exposed correctly regardless.
 
 ## [0.2.3]
 
@@ -233,7 +247,7 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 - **Camera service is now attached by default.** A leftover guard (`enableCamera ?? false`) was preventing the `CameraController` from being wired up on the flap accessory. The camera tile now appears in the Home app and HKSV is reachable.
 - Set `accessory.category = CAMERA` so iOS Home groups the flap's sensors and switches under one camera tile, rather than scattering them as individual tiles in the room view.
 - Set `ConfiguredName` (in addition to `Name`) on every service so the Home app and Siri pick up clear, predictable labels.
-- `StatusFault` is no longer set on `LockMechanism` (HAP doesn't list it as required/optional there). It now reflects the offline state on `MotionSensor` "Activity" and `OccupancySensor` "Online" only — eliminating the warning at startup.
+- `StatusFault` is no longer set on `LockMechanism` (HAP doesn't list it as required/optional there). It now reflects the offline state on `MotionSensor` "Activity" and `OccupancySensor` "Online" only - eliminating the warning at startup.
 
 ### Added
 
@@ -244,9 +258,9 @@ Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submi
 
 ### Added
 
-- **Per-cat presence is now driven by OnlyCat's `getEventSummary` endpoint.** When a flap event starts, the plugin subscribes to its server-computed summary and updates presence only on canonical `TRANSIT` subevents. Peeks, denies, and breaches no longer flip presence — fixing the most common false-positive ("cat looked through the flap → marked outside").
-- **`OccupancySensor` "Breach"** on each flap. Fires when the summary reports a `BREACH` action — the lock was engaged but a cat transited anyway. Logs a warning at the same time. Use it to drive a security automation (lights, sirens, notifications).
-- **`OccupancySensor` "Blocked"** on each flap. Fires when the summary reports a `DENY` action — the door policy refused a cat. Useful for "unknown cat tried to enter" notifications.
+- **Per-cat presence is now driven by OnlyCat's `getEventSummary` endpoint.** When a flap event starts, the plugin subscribes to its server-computed summary and updates presence only on canonical `TRANSIT` subevents. Peeks, denies, and breaches no longer flip presence - fixing the most common false-positive ("cat looked through the flap → marked outside").
+- **`OccupancySensor` "Breach"** on each flap. Fires when the summary reports a `BREACH` action - the lock was engaged but a cat transited anyway. Logs a warning at the same time. Use it to drive a security automation (lights, sirens, notifications).
+- **`OccupancySensor` "Blocked"** on each flap. Fires when the summary reports a `DENY` action - the door policy refused a cat. Useful for "unknown cat tried to enter" notifications.
 - Typed `getEventSummary` RPC + `eventSummaryUpdate` push event in the API client, with runtime payload validation.
 
 ### Changed
@@ -276,6 +290,6 @@ Initial public release.
 
 ### Notes
 
-- Audio is intentionally disabled — OnlyCat clips do not carry an audio track.
+- Audio is intentionally disabled - OnlyCat clips do not carry an audio track.
 - HKSV pre-buffer length is fixed at zero. The plugin records from motion-detected onwards because OnlyCat does not expose a continuous live feed.
 - Production dependency tree at release time: 9 packages, all from the `socket.io-client` family, with no known vulnerabilities.

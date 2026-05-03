@@ -12,14 +12,14 @@ When reporting, please include:
 
 ## Supported versions
 
-Only the latest minor release receives security fixes. While the plugin is below `1.0.0` it is considered alpha — backports are best-effort.
+Only the latest minor release receives security fixes. While the plugin is below `1.0.0` it is considered alpha - backports are best-effort.
 
 ## Threat model
 
 The plugin sits between three trust boundaries:
 
 ```
-[ HomeKit / Home app ]  <—HAP—>  [ this plugin ]  <—WSS/HTTPS—>  [ OnlyCat gateway ]
+[ HomeKit / Home app ]  <-HAP->  [ this plugin ]  <-WSS/HTTPS->  [ OnlyCat gateway ]
 ```
 
 | Boundary | Trusted? | Notes |
@@ -35,12 +35,12 @@ The plugin sits between three trust boundaries:
 - **Token confidentiality.**
   - The token is never logged at INFO level.
   - At DEBUG level it is partially redacted (first 4 chars + `***`).
-  - The token is sent only in the Socket.IO handshake `auth` field — never in URLs or HTTP headers.
+  - The token is sent only in the Socket.IO handshake `auth` field - never in URLs or HTTP headers.
 - **Strict input validation.** Every payload received from the gateway is validated against a typed schema before being used. Unknown fields are ignored, malformed payloads are dropped with a warning.
 - **No dynamic code execution.** No `eval`, no `Function()`, no dynamic `require()`.
-- **Bounded subprocesses.** ffmpeg (used for live streaming and HKSV recording) is spawned with arrays — never a shell — and with explicit argument lists. Output streams are size-limited to prevent memory exhaustion.
+- **Bounded subprocesses.** ffmpeg (used for live streaming and HKSV recording) is spawned with arrays - never a shell - and with explicit argument lists. Output streams are size-limited to prevent memory exhaustion.
 - **Minimal dependencies.** Each direct runtime dep is justified in `package.json` and audited (`npm audit`). We avoid transitive bloat.
-- **Graceful failure.** Auth errors fail fast with a clear log message — they do not retry-loop forever.
+- **Graceful failure.** Auth errors fail fast with a clear log message - they do not retry-loop forever.
 
 ## What you can do to protect yourself
 

@@ -14,7 +14,7 @@ This document describes the internal design of `homebridge-onlycat`. End-user do
                                     ffmpeg (camera, HKSV)
 ```
 
-The plugin is a Homebridge **dynamic platform**. On startup it opens a single Socket.IO/WebSocket connection to OnlyCat's gateway and uses that one connection for the lifetime of the process — no polling, no per-accessory connections.
+The plugin is a Homebridge **dynamic platform**. On startup it opens a single Socket.IO/WebSocket connection to OnlyCat's gateway and uses that one connection for the lifetime of the process - no polling, no per-accessory connections.
 
 ## Runtime layout
 
@@ -53,9 +53,9 @@ The plugin is a Homebridge **dynamic platform**. On startup it opens a single So
 
 | Module | Responsibility |
 |--------|----------------|
-| `src/index.ts` | Homebridge entrypoint — registers the platform |
+| `src/index.ts` | Homebridge entrypoint - registers the platform |
 | `src/settings.ts` | Constants (plugin name, platform name) |
-| `src/platform.ts` | Dynamic platform — discovers, registers, restores accessories |
+| `src/platform.ts` | Dynamic platform - discovers, registers, restores accessories |
 | `src/api/client.ts` | Typed Socket.IO client with reconnect & RPC wrapper |
 | `src/api/types.ts` | TypeScript interfaces matching OnlyCat shared models |
 | `src/accessories/flapAccessory.ts` | Flap = camera + sensors + lock |
@@ -69,7 +69,7 @@ The plugin is a Homebridge **dynamic platform**. On startup it opens a single So
 
 ### Single connection, multiplexed
 
-A Homebridge instance with N flaps and M cats opens **one** WebSocket — never N+M. All accessories listen to the same event stream and filter by `deviceId` / `rfidCode`. This matches what the official Home Assistant integration does.
+A Homebridge instance with N flaps and M cats opens **one** WebSocket - never N+M. All accessories listen to the same event stream and filter by `deviceId` / `rfidCode`. This matches what the official Home Assistant integration does.
 
 ### Event-driven, not polled
 
@@ -77,17 +77,17 @@ We avoid HTTP polling entirely. The only RPCs we make are at startup (discover d
 
 ### Camera = event-recorder
 
-OnlyCat does not expose a continuous live stream — only per-event HLS clips. The HomeKit camera surface is therefore modelled as an event-recorder:
+OnlyCat does not expose a continuous live stream - only per-event HLS clips. The HomeKit camera surface is therefore modelled as an event-recorder:
 
-- **Snapshot** — latest event poster frame
-- **Live view** — the most recent event clip; falls back to a static still
-- **HKSV** — recordings start when an event begins and end when it concludes
+- **Snapshot** - latest event poster frame
+- **Live view** - the most recent event clip; falls back to a static still
+- **HKSV** - recordings start when an event begins and end when it concludes
 
 This is unusual for a HomeKit camera but works in practice and matches what HKSV is designed for: motion-triggered recording.
 
 ### Stateless accessory lifecycle
 
-Accessories are uniquely identified by `deviceId` (flap) or `rfidCode` (cat). On startup the plugin reconciles cached accessories against the current discovery — additions are registered, removals are unregistered, restarts pick up where they left off.
+Accessories are uniquely identified by `deviceId` (flap) or `rfidCode` (cat). On startup the plugin reconciles cached accessories against the current discovery - additions are registered, removals are unregistered, restarts pick up where they left off.
 
 ### Trust boundaries
 
@@ -97,5 +97,5 @@ See [`SECURITY.md`](../SECURITY.md). Briefly: we treat HomeKit as trusted, OnlyC
 
 - **No telemetry / analytics.** The plugin makes no outbound calls except to `gateway.onlycat.com`.
 - **No cloud relay.** Snapshots, video, and event data flow only between you, OnlyCat, and your HomeKit hub.
-- **No persistence beyond Homebridge's accessory cache.** We don't store an event database — that's HKSV's job.
+- **No persistence beyond Homebridge's accessory cache.** We don't store an event database - that's HKSV's job.
 - **No public API surface.** The plugin doesn't expose its own HTTP endpoints; everything is HAP.

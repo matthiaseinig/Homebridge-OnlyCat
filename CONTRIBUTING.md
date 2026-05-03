@@ -35,7 +35,7 @@ The `dev/` folder holds a local Homebridge sandbox that's git-ignored. Copy the 
 
 ```sh
 cp dev/config.example.json dev/config.json
-# edit dev/config.json — paste your OnlyCat API token
+# edit dev/config.json - paste your OnlyCat API token
 npm run dev
 ```
 
@@ -45,10 +45,10 @@ Pair the dev bridge to a separate "house" in the Home app, or unpair it after te
 
 We hold every commit to four rules. CI will fail if any of them break:
 
-1. **Type-check + lint clean** — `npm run build && npm run lint`
-2. **Tests pass with ≥ 95 % line and branch coverage** — `npm run test:coverage`
-3. **No new vulnerabilities** — `npm audit --audit-level=high` clean, no unpinned dependencies
-4. **No leaked secrets** — token, API keys, or device IDs must never appear in committed files. The `dev/` directory is git-ignored except for the example and README.
+1. **Type-check + lint clean** - `npm run build && npm run lint`
+2. **Tests pass with ≥ 95 % line and branch coverage** - `npm run test:coverage`
+3. **No new vulnerabilities** - `npm audit --audit-level=high` clean, no unpinned dependencies
+4. **No leaked secrets** - token, API keys, or device IDs must never appear in committed files. The `dev/` directory is git-ignored except for the example and README.
 
 ## Architecture notes
 
