@@ -1,14 +1,19 @@
 {
   "displayName": "OnlyCat",
   "name": "homebridge-onlycat",
-  "version": "0.2.26",
+  "version": "1.0.0",
   "description": "Homebridge plugin for the OnlyCat smart cat flap — exposes the flap as a HomeKit camera with HomeKit Secure Video, per-cat presence sensors, and door-policy controls.",
   "license": "MIT",
   "author": {
     "name": "Matthias Einig",
     "url": "https://github.com/matthiaseinig"
   },
-  "funding": "https://github.com/matthiaseinig",
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/matthiaseinig"
+    }
+  ],
   "homepage": "https://github.com/matthiaseinig/Homebridge-OnlyCat#readme",
   "repository": {
     "type": "git",

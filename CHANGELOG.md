@@ -2,6 +2,22 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0]
+
+First stable release.
+
+The plugin has been in production use against a real OnlyCat flap since 0.2.x and every advertised feature now works end-to-end: snapshot, live view (with optional loop divider), per-cat presence, door-policy lock, contraband / human / breach / blocked / online sensors, and HomeKit Secure Video recording on every flap event. 207 unit tests, 99 % line coverage, 94 % branch coverage; clean `npm audit`.
+
+Bumping to 1.0.0 to mark the API as stable. The plugin is now eligible for submission to the Homebridge verified-plugins registry.
+
+### Changed
+
+- `funding` field switched to the array-of-objects form so the Homebridge UI plugin tile renders **`@matthiaseinig` ❤️** instead of a bare `@`.
+
+### Added
+
+- `assets/icon.png` (100×100) for submission to the Homebridge verified-plugins icon registry.
+
 ## [0.2.26]
 
 ### Added
