@@ -2,6 +2,16 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2]
+
+### Fixed
+
+- Three streaming-delegate tests that race the augmentation + streaming ffmpeg spawn chain now poll for the streaming-spawn condition instead of relying on a fixed 50 ms sleep. Coverage instrumentation under load could push the chain past the 50 ms threshold and fail `start with cached event spawns ffmpeg with sane args`. The poll-based wait is robust regardless of host speed.
+
+### Privacy
+
+- Redacted the home name from `docs/screenshots/setup-11-camera-added.png` and `docs/screenshots/setup-15-cat-occupancy-added.png` (force-pushed `main` and the `v1.0.1` tag prior to this release; orphan blobs on GitHub will be cleaned by GitHub's GC).
+
 ## [1.0.1]
 
 ### Added

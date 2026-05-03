@@ -288,9 +288,26 @@ describe("OnlyCatStreamingDelegate", () => {
   }
 
   async function flushAsync(): Promise<void> {
-    // The download path does fetch + fs.writeFile, both genuinely async I/O.
-    // setImmediate won't flush enough — give the event loop ~50 ms.
+    // The download path does fetch + fs.writeFile + an awaited augmentation
+    // ffmpeg + unlink, all genuinely async. A fixed-delay sleep races
+    // against coverage instrumentation under load. Wait up to 1 s instead.
     await new Promise((r) => setTimeout(r, 50));
+  }
+
+  /**
+   * Wait until `predicate()` returns truthy, up to `timeoutMs`. Polls every
+   * 5 ms. Returns whether the predicate ever became truthy.
+   */
+  async function waitUntil(
+    predicate: () => boolean,
+    timeoutMs = 2000,
+  ): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (predicate()) return true;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    return predicate();
   }
 
   it("start with cached event spawns ffmpeg with sane args", async () => {
@@ -315,12 +332,17 @@ describe("OnlyCatStreamingDelegate", () => {
     try {
       await delegate.prepareStream(prepareRequest() as never, vi.fn());
       delegate.handleStreamRequest(startRequest() as never, vi.fn());
-      await flushAsync();
-
       // The augmentation pass spawns first (input is the shipped slate),
-      // then the streaming pass. We check the streaming pass — it's the
-      // call that has the `-re` flag.
-      expect(spawner).toHaveBeenCalled();
+      // then the streaming pass. We check the streaming pass: the call
+      // that has the `-re` flag. Poll instead of a fixed-delay sleep so
+      // the test stays green under coverage instrumentation on slow
+      // machines.
+      const sawStreamingSpawn = await waitUntil(() =>
+        spawner.mock.calls.some((call) =>
+          (call[1] as string[]).includes("-re"),
+        ),
+      );
+      expect(sawStreamingSpawn).toBe(true);
       const streamingCall = spawner.mock.calls.find((call) =>
         (call[1] as string[]).includes("-re"),
       );
@@ -386,18 +408,25 @@ describe("OnlyCatStreamingDelegate", () => {
     const cache = new EventCache();
     cache.apply({ deviceId: "d", eventId: 1, accessToken: "tok" });
     const child = fakeChild();
+    const spawner = makeSpawner(child);
     const delegate = new OnlyCatStreamingDelegate({
       api: makeApi(),
       log: createMockLogger(),
       deviceId: "d",
       eventCache: cache,
       portAllocator: async () => 7000,
-      spawner: makeSpawner(child) as never,
+      spawner: spawner as never,
     });
     try {
       await delegate.prepareStream(prepareRequest() as never, vi.fn());
       delegate.handleStreamRequest(startRequest() as never, vi.fn());
-      await flushAsync();
+      // Wait for the streaming ffmpeg (the one with `-re`) to have spawned
+      // via our mock; this is what `child.kill` is hooked into.
+      await waitUntil(() =>
+        spawner.mock.calls.some((call) =>
+          (call[1] as string[]).includes("-re"),
+        ),
+      );
 
       const cb = vi.fn();
       delegate.handleStreamRequest(
@@ -441,7 +470,13 @@ describe("OnlyCatStreamingDelegate", () => {
     try {
       await delegate.prepareStream(prepareRequest() as never, vi.fn());
       delegate.handleStreamRequest(startRequest() as never, vi.fn());
-      await new Promise((r) => setTimeout(r, 50));
+      // Wait for the streaming ffmpeg to spawn (with `-re`) after the
+      // augmentation pass fails.
+      await waitUntil(() =>
+        spawner.mock.calls.some((call) =>
+          (call[1] as string[]).includes("-re"),
+        ),
+      );
 
       // The plugin should still spawn the streaming ffmpeg even though the
       // augmentation pass failed.
