@@ -147,6 +147,9 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
           audioPort: request.audio.port,
         },
       });
+      // Streaming options now declare an empty audio codec list, so iOS
+      // doesn't expect an audio block. Sending one regardless made iOS wait
+      // for audio packets we never produce, leaving the video tile spinning.
       safeCallback(undefined, {
         video: {
           port: videoReturnPort,
@@ -154,10 +157,6 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
           srtp_key: request.video.srtp_key,
           srtp_salt: request.video.srtp_salt,
         },
-        // iOS expects an audio block in the response even when we don't deliver
-        // audio packets — it allocates an audio session and waits to be told
-        // which port + SRTP context to use. We return valid SRTP material;
-        // ffmpeg itself doesn't actually emit audio (still uses -an).
         audio: {
           port: audioReturnPort,
           ssrc: this.api.hap.CameraController.generateSynchronisationSource(),
@@ -247,8 +246,11 @@ export class OnlyCatStreamingDelegate implements CameraStreamingDelegate {
 
     const args = [
       "-hide_banner",
+      // Verbose enough for the bridge log to show ffmpeg's negotiated SDP and
+      // per-second frame stats — we need that detail to diagnose iOS-side
+      // rejections, where ffmpeg otherwise dies silently with code 255.
       "-loglevel",
-      "warning",
+      "info",
       "-re",
       "-stream_loop",
       "-1",

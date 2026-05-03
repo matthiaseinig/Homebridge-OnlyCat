@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.16]
+
+### Fixed
+
+- **Live view actually plays.** Empirically confirmed in the bridge log: ffmpeg was sending iOS ~1 MB of valid H.264 video over 28 seconds, but iOS rendered nothing because we'd advertised AAC-ELD audio support and then never sent any audio packets. iOS's HKSV video session was waiting for audio sync that would never arrive. v0.2.16 declares an empty audio codec list, so iOS skips the audio session and starts the video immediately.
+
 ## [0.2.15]
 
 ### Fixed

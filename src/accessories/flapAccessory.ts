@@ -675,12 +675,12 @@ function defaultStreamingOptions(): unknown {
     },
     audio: {
       twoWayAudio: false,
-      codecs: [
-        {
-          type: "AAC-eld",
-          samplerate: 16,
-        },
-      ],
+      // OnlyCat clips have no audio. Declaring AAC-ELD here makes iOS
+      // negotiate an audio RTP session and then *wait for audio packets we
+      // never send* — the video tile stays on the spinner indefinitely.
+      // An empty codec list tells iOS we have no audio at all; iOS skips
+      // the audio session and starts decoding video immediately.
+      codecs: [],
     },
   };
 }
