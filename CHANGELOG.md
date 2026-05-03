@@ -2,6 +2,16 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.24]
+
+### Fixed
+
+- **Live view: synthesised silent AAC-ELD audio so iOS HKSV stops gating video on an empty audio session.** Across 0.2.16–0.2.23 we kept seeing ffmpeg send ~1 MB of valid H.264 to iOS with the camera tile spinning forever, and the session always ended in `ffmpeg exited with code 255` after ~26 s — exactly the iOS HKSV "video session never went active" timeout. The empty-audio-codec approach from 0.2.16 turned out not to actually skip the audio session; iOS still allocated audio RTP sockets in `prepareStream` and waited for them. Now `defaultStreamingOptions()` declares AAC-ELD support and the ffmpeg pipeline pulls a `lavfi` `anullsrc` second input and encodes it to mono AAC-ELD (16 kHz, 24 kbps) into a parallel SRTP socket. The audio session sees activity, iOS releases the video session, and the tile finally renders.
+
+### Internal
+
+- streamingDelegate ffmpeg args now contain explicit `-map 0:v` / `-map 1:a` so the multi-input pipeline is unambiguous to ffmpeg's muxer.
+
 ## [0.2.23]
 
 ### Changed

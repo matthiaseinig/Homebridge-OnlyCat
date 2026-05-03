@@ -302,7 +302,14 @@ describe("OnlyCatStreamingDelegate", () => {
       expect(
         args.some((a: string) => a.endsWith("onlycat-d-11.mp4")),
       ).toBe(true);
-      expect(args).toContain("-an");
+      // v0.2.24: silent AAC-ELD audio is synthesised via lavfi anullsrc, so
+      // the pipeline now has -map 1:a + libfdk_aac instead of -an.
+      expect(args).not.toContain("-an");
+      expect(
+        args.some((a: string) => a.includes("anullsrc=")),
+      ).toBe(true);
+      expect(args).toContain("libfdk_aac");
+      expect(args).toContain("aac_eld");
       expect(args).toContain("-re");
       const loopIdx = args.indexOf("-stream_loop");
       expect(loopIdx).toBeGreaterThan(-1);
@@ -314,10 +321,15 @@ describe("OnlyCatStreamingDelegate", () => {
             a.startsWith("srtp://192.168.1.20") && a.includes("rtcpport="),
         ),
       ).toBe(true);
-      const paramsIdx = args.indexOf("-srtp_out_params");
-      expect(paramsIdx).toBeGreaterThan(-1);
-      const decoded = Buffer.from(args[paramsIdx + 1]!, "base64");
-      expect(decoded.length).toBe(30);
+      // Both video and audio outputs carry their own -srtp_out_params.
+      const paramsIndices = args
+        .map((a: string, i: number) => (a === "-srtp_out_params" ? i : -1))
+        .filter((i: number) => i >= 0);
+      expect(paramsIndices.length).toBe(2);
+      for (const idx of paramsIndices) {
+        const decoded = Buffer.from(args[idx + 1]!, "base64");
+        expect(decoded.length).toBe(30);
+      }
     } finally {
       restore();
     }
