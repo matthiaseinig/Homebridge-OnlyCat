@@ -654,19 +654,21 @@ function defaultRecordingOptions(): unknown {
 }
 
 function defaultStreamingOptions(): unknown {
-  // Minimal H.264-only profile: HK accepts a copy of the OnlyCat clip's H.264.
-  // iOS rejects a streaming options struct with an empty audio.codecs list and
-  // throws "Audio was enabled but not supplied" during prepareStream. Declare
-  // AAC-ELD as supported even though we don't actually emit audio — the audio
-  // RTP session is established but never carries packets.
+  // OnlyCat event clips are 800×600 at 10 fps. We declared 30 fps here
+  // originally and let ffmpeg duplicate every source frame three times to
+  // reach that rate — iOS HKSV ended up seeing runs of bit-identical RTP
+  // packets and silently rejecting the stream. Declaring 10 fps (the
+  // source's actual rate) means iOS asks for 10 fps and ffmpeg passes it
+  // through without duplication.
   return {
     supportedCryptoSuites: [0],
     video: {
       resolutions: [
-        [1280, 720, 30],
-        [1024, 768, 30],
-        [640, 480, 30],
-        [320, 240, 15],
+        [1280, 720, 10],
+        [1024, 768, 10],
+        [800, 600, 10],
+        [640, 480, 10],
+        [320, 240, 10],
       ],
       codec: {
         profiles: [0, 1, 2],

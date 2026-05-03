@@ -2,6 +2,16 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21]
+
+### Fixed
+
+- **No more frame duplication.** OnlyCat clips are encoded at 10 fps; we previously declared 30 fps in `supportedStreamingOptions`, so iOS asked for 30 fps and ffmpeg duplicated every source frame three times. iOS HKSV evidently treated the resulting runs of bit-identical RTP packets as a pathological stream and stopped rendering despite ffmpeg sending ~1 MB of valid H.264 every session. Resolutions in the streaming options now declare 10 fps, matching the source. ffmpeg passes frames through 1-for-1 with no duplication.
+
+### Changed
+
+- Author + funding metadata in `package.json` so the Homebridge UI shows **`@matthiaseinig` ❤️** on the plugin tile.
+
 ## [0.2.20]
 
 ### Fixed
