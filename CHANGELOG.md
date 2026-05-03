@@ -2,6 +2,12 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3]
+
+### Added
+
+- Manual install command (`sudo npm install -g homebridge-onlycat`) and a link to the [npm package page](https://www.npmjs.com/package/homebridge-onlycat) in the README's Quick Start.
+
 ## [1.0.2]
 
 ### Fixed

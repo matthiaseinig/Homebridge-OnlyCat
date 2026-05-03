@@ -32,12 +32,19 @@ It turns your OnlyCat flap into a fully-featured HomeKit accessory: a real camer
 
 ## Quick start
 
-1. Install via the Homebridge UI: search for **OnlyCat** in the Plugins tab.
+1. Install the plugin. Either via the Homebridge UI (search for **OnlyCat** in the Plugins tab) or from the command line:
+
+   ```sh
+   sudo npm install -g homebridge-onlycat
+   ```
+
 2. Generate an API token in the OnlyCat mobile app under **Settings → Developer**.
 3. Paste the token into the plugin settings, save, restart Homebridge.
 4. Pair the bridge with iOS Home if you have not already.
 
 For the full pairing flow with screenshots, see [docs/getting-started.md](docs/getting-started.md).
+
+The plugin is published on npm at [homebridge-onlycat](https://www.npmjs.com/package/homebridge-onlycat).
 
 ## Triggering automations
 
