@@ -2,6 +2,17 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5]
+
+### Fixed
+
+- **HomeKit Secure Video recordings now show up in the timeline.** The recording delegate's `cap()` helper was truncating ffmpeg-pipe chunks longer than 256 KB instead of splitting them, silently discarding everything past the limit. The resulting MP4 fragments had a moof-mdat mismatch (the moof's sample-table referenced bytes that were never sent), so iOS HKSV decoded the first ~2 seconds, played those frames twice while it tried to recover, then dropped the recording before iCloud upload. Net effect: events never reached the timeline. Replaced with a generator that splits oversize buffers into multiple yields, preserving every byte. The existing test that encoded the truncation behaviour as expected has been updated to assert byte-preserving splits.
+
+### Notes
+
+- Recording timestamps are still wall-clock time at the moment iOS receives the upload, not the original cat-flap event time. Apple's HKSV API does not expose a backdate primitive, so this is unfixable from the plugin side.
+- A 1-2 minute delay between the cat triggering the flap and the recording appearing in the iCloud timeline is normal HKSV behaviour: OnlyCat gateway processing (~30-60 s) plus iCloud upload (~30-60 s).
+
 ## [1.0.4]
 
 ### Added

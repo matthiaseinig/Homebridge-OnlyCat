@@ -190,7 +190,7 @@ export class OnlyCatRecordingDelegate implements CameraRecordingDelegate {
     while (!recording.closed) {
       if (queue.length > 0) {
         const buf = queue.shift()!;
-        yield this.cap(buf);
+        for (const part of this.splitChunk(buf)) yield part;
         continue;
       }
       if (ended) return;
@@ -198,12 +198,24 @@ export class OnlyCatRecordingDelegate implements CameraRecordingDelegate {
         waiter = resolve;
       });
       if (!next) return;
-      yield this.cap(next);
+      for (const part of this.splitChunk(next)) yield part;
     }
   }
 
-  private cap(buf: Buffer): Buffer {
-    if (buf.length <= this.chunkSize) return buf;
-    return buf.subarray(0, this.chunkSize);
+  /**
+   * Split a buffer into pieces of at most `chunkSize` bytes. We must
+   * preserve every byte ffmpeg produced: truncating breaks MP4 fragment
+   * integrity (the moof's sample-table no longer matches the mdat
+   * contents) and iOS HKSV rejects the recording silently, never
+   * reaching the iCloud timeline.
+   */
+  private *splitChunk(buf: Buffer): Iterable<Buffer> {
+    if (buf.length <= this.chunkSize) {
+      yield buf;
+      return;
+    }
+    for (let i = 0; i < buf.length; i += this.chunkSize) {
+      yield buf.subarray(i, Math.min(i + this.chunkSize, buf.length));
+    }
   }
 }

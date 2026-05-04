@@ -93,7 +93,7 @@ describe("OnlyCatRecordingDelegate", () => {
     ]);
   });
 
-  it("caps oversize chunks at chunkSize", async () => {
+  it("splits oversize chunks at chunkSize without losing bytes", async () => {
     const cache = new EventCache();
     cache.apply({ deviceId: "d", eventId: 1, accessToken: "tok" });
     const child = fakeChild();
@@ -116,12 +116,16 @@ describe("OnlyCatRecordingDelegate", () => {
     })();
 
     await new Promise((r) => setImmediate(r));
-    child.stdout.emit("data", Buffer.from([1, 2, 3, 4, 5, 6]));
+    child.stdout.emit("data", Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9]));
     child.stdout.emit("end");
     await consumer;
 
-    // First chunk capped to 4 bytes, then last terminator
+    // 9 bytes split into 4 + 4 + 1, then the empty terminator.
+    // Truncation here would break MP4 fragment integrity and iOS
+    // HKSV would reject the recording, so every byte must survive.
     expect(collected[0]!.data).toEqual(Buffer.from([1, 2, 3, 4]));
+    expect(collected[1]!.data).toEqual(Buffer.from([5, 6, 7, 8]));
+    expect(collected[2]!.data).toEqual(Buffer.from([9]));
     expect(collected.at(-1)!.isLast).toBe(true);
   });
 
