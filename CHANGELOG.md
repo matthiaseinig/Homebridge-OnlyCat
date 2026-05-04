@@ -2,6 +2,13 @@
 
 All notable changes to `homebridge-onlycat` are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4]
+
+### Added
+
+- README badges for npm version, total npm downloads, monthly npm downloads, latest GitHub release, CI status, MIT licence, and Homebridge compatibility.
+- GitHub Actions workflow at `.github/workflows/ci.yml` running `lint + build + test:coverage + audit` on every push and pull request to `main`, across Node 18.20, 20.15, and 22. Backs the CI badge.
+
 ## [1.0.3]
 
 ### Added

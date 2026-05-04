@@ -4,6 +4,16 @@
 
 # Homebridge-OnlyCat
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/homebridge-onlycat"><img src="https://img.shields.io/npm/v/homebridge-onlycat?logo=npm&label=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/homebridge-onlycat"><img src="https://img.shields.io/npm/dt/homebridge-onlycat?logo=npm&label=downloads" alt="total npm downloads" /></a>
+  <a href="https://www.npmjs.com/package/homebridge-onlycat"><img src="https://img.shields.io/npm/dm/homebridge-onlycat?logo=npm&label=monthly" alt="monthly npm downloads" /></a>
+  <a href="https://github.com/matthiaseinig/Homebridge-OnlyCat/releases/latest"><img src="https://img.shields.io/github/v/release/matthiaseinig/Homebridge-OnlyCat?logo=github&label=release" alt="latest release" /></a>
+  <a href="https://github.com/matthiaseinig/Homebridge-OnlyCat/actions/workflows/ci.yml"><img src="https://github.com/matthiaseinig/Homebridge-OnlyCat/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/matthiaseinig/Homebridge-OnlyCat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/matthiaseinig/Homebridge-OnlyCat" alt="MIT License" /></a>
+  <a href="https://homebridge.io"><img src="https://img.shields.io/badge/homebridge-1.8%20%7C%202.0--beta-blue" alt="Homebridge 1.8 / 2.0-beta" /></a>
+</p>
+
 Homebridge plugin for the [OnlyCat](https://www.onlycat.com) smart cat flap.
 
 It turns your OnlyCat flap into a fully-featured HomeKit accessory: a real camera tile with the latest event clip on loop, HomeKit Secure Video recording on every transit, per-cat presence sensors, contraband and breach alarms, plus a door-policy lock you can drive from the Home app or with Siri.
